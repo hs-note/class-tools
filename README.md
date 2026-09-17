@@ -7,6 +7,7 @@
 | 教材 | 開く |
 |---|---|
 | 音のデジタル化シミュレーター（標本化・量子化・符号化／データ量） | https://km-note.github.io/class-tools/sound/ |
+| 画像のデジタル化シミュレーター（画素・解像度・階調／画像と動画のデータ量） | https://km-note.github.io/class-tools/image/ |
 
 ## 使わせてもらっているもの
 

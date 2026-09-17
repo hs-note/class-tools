@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画像のデジタル化シミュレーター</title>
+<style>
+:root{
+  color-scheme: light;
+  --ground:#E9EEF3;
+  --panel:#FFFFFF;
+  --plot:#F7F9FB;
+  --chip:#FFF7F1;
+  --ink:#14202B;
+  --muted:#566472;
+  --rule:#CFD8E1;
+  --grid:#DCE3EA;
+  --analog:#2E5FCC;
+  --analog-soft:#A9BEEB;
+  --digital:#E0560E;
+  --digital-soft:#F6CDB3;
+  --red:#C62828;
+  --green:#2E7D32;
+  --blue:#1565C0;
+  --focus:#1B4FB8;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Consolas","Menlo",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--ground)}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:14px 36px;-webkit-text-size-adjust:100%}
+.wrap{max-width:1480px;margin-inline:auto;display:grid;gap:14px}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(20px,2.1vw,28px);letter-spacing:.02em}
+h2{font-size:18px}
+p{margin:0}
+rt{font-size:.55em;font-weight:400;letter-spacing:0}
+.no-rt rt{display:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* 上の帯 */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
+.name{display:grid;gap:2px}
+.sub{color:var(--muted);font-size:14px}
+.sub b{color:var(--ink)}
+.steps{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.step{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1.5px solid var(--rule);border-radius:10px;background:var(--panel);cursor:pointer;text-align:left}
+.step:hover{border-color:var(--ink)}
+.step:disabled{opacity:.45;cursor:not-allowed;border-color:var(--rule)}
+.step .num{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--grid);font-weight:700;font-variant-numeric:tabular-nums}
+.step .lbl{display:grid;line-height:1.25;font-weight:700}
+.step small{font-size:12px;font-weight:400;color:var(--muted)}
+.step.done{border-color:var(--analog-soft)}
+.step.done .num{background:var(--analog-soft)}
+.step[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.step[aria-pressed="true"] .num{background:var(--digital);color:#fff}
+.step[aria-pressed="true"] small{color:#D5DDE5}
+.arrow{color:var(--muted)}
+.furi{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.furi input{width:18px;height:18px;accent-color:var(--ink)}
+
+/* 本体 */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 320px;grid-template-areas:"graph side" "code side";gap:14px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
+.stagecard{grid-area:graph;display:grid;gap:10px}
+.cap{font-size:14px;color:var(--muted)}
+.cap b{color:var(--ink)}
+.canvas-box{width:100%}
+canvas{display:block;margin-inline:auto;max-width:100%;touch-action:manipulation}
+.tap{font-size:13px;color:var(--muted);text-align:center}
+
+.code{grid-area:code;display:grid;gap:8px}
+.code-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px}
+.code-sum{font-size:15px}
+.code-sum b{font-variant-numeric:tabular-nums}
+.hint{color:var(--muted);font-size:14px}
+.rowlabel{font-size:14px}
+.rowlabel b{font-variant-numeric:tabular-nums}
+.rowlabel small{color:var(--muted);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:grid;justify-items:center;align-content:start;min-width:44px;padding:3px 8px 5px;border:1px solid var(--digital-soft);background:var(--chip);border-radius:8px;font-variant-numeric:tabular-nums;cursor:pointer}
+.chip:hover{border-color:var(--ink)}
+.chip[aria-current="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink)}
+.chip .i{font-size:10px;color:var(--muted);line-height:1.1}
+.chip .sw{display:block;width:100%;min-width:26px;height:12px;border-radius:4px;border:1px solid rgba(20,32,43,.22);margin-block:2px 1px}
+.chip .d{font-size:18px;font-weight:700;line-height:1.2;color:var(--digital)}
+.chip .bn{font-family:var(--mono);font-size:13px;letter-spacing:.04em;line-height:1.2}
+.rgb{display:grid;gap:0;justify-items:start}
+.rgb > span{display:flex;align-items:baseline;gap:5px;font-size:14px;line-height:1.3}
+.rgb i{font-style:normal;font-weight:700;font-size:11px;width:.9em}
+.rgb b{min-width:1.9em;text-align:right}
+.rgb code{font-family:var(--mono);font-size:12.5px;letter-spacing:.03em}
+.r{color:var(--red)}
+.g{color:var(--green)}
+.b{color:var(--blue)}
+.ccode{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:14px;background:var(--plot);border-radius:8px;padding:6px 10px}
+.ccode .sw{display:inline-block;width:28px;height:18px;border-radius:4px;border:1px solid rgba(20,32,43,.22)}
+.ccode .hex{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.04em}
+.stream-box{display:grid;gap:4px}
+.stream-lbl{font-size:13px;font-weight:700}
+.stream{font-family:var(--mono);font-size:13px;color:var(--muted);word-break:break-all;max-height:5.8em;overflow:auto;background:var(--plot);border-radius:8px;padding:6px 10px}
+
+/* 設定 */
+.controls{grid-area:side;display:grid;gap:14px}
+.ctl{display:grid;gap:6px}
+.sep{border-top:1px solid var(--grid);padding-top:14px}
+.ctl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.ctl-name{font-weight:700}
+.big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--digital);line-height:1.1;white-space:nowrap}
+.big small{font-size:15px;margin-inline:2px}
+input[type=range]{width:100%;height:28px;margin:0;accent-color:var(--digital);cursor:pointer}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding-inline:2px}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.row > span,.row > label{font-size:14px;font-weight:700}
+.seg{display:inline-flex;flex-wrap:wrap;border:1.5px solid var(--rule);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:6px 12px;cursor:pointer;font-size:14px}
+.seg button + button{border-left:1.5px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--digital)}
+.check:has(input:disabled){opacity:.45;cursor:default}
+.presets{display:grid;gap:6px}
+.presets > span{font-size:13px;color:var(--muted)}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pbtn{display:grid;gap:1px;border:1.5px solid var(--rule);background:var(--plot);border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;line-height:1.25}
+.pbtn:hover{border-color:var(--ink)}
+.pbtn b{font-size:14px}
+.pbtn small{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pbtn[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.pbtn[aria-pressed="true"] small{color:#D5DDE5}
+.subbox{display:grid;gap:8px;background:var(--plot);border-radius:10px;padding:10px}
+.subbox .note b{color:var(--digital)}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--ink);background:var(--panel);border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--digital);border-color:var(--digital);color:#fff}
+.caution{font-size:13px;color:var(--muted)}
+.nw{white-space:nowrap}
+
+/* 下段 */
+.data{display:grid;gap:12px}
+.formula{font-size:15px;background:var(--plot);border-radius:8px;padding:8px 12px;line-height:1.9}
+.data-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px 24px;align-items:start}
+.data-in{display:grid;gap:10px}
+.in-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+input[type=number]{width:6em;font:inherit;padding:4px 8px;border:1.5px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.mini{border:1.5px solid var(--rule);background:var(--panel);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:13px}
+.mini:hover{border-color:var(--ink)}
+.expr{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.ladder{display:grid;gap:1px;font-variant-numeric:tabular-nums}
+.rung{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.rung .v{font-size:18px;font-weight:700}
+.rung .u{font-size:14px;font-weight:700;color:var(--muted)}
+.op{font-size:12px;color:var(--muted)}
+.l1{padding-left:1.4em}
+.l2{padding-left:2.8em}
+.l3{padding-left:4.2em}
+.l4{padding-left:5.6em}
+.rung.final .v{font-size:26px;color:var(--digital)}
+.cmp{display:grid;gap:6px}
+.bar{height:12px;background:var(--grid);border-radius:6px;overflow:hidden}
+.bar span{display:block;height:100%;width:0;background:var(--digital);transition:width .25s ease}
+
+@media (max-width:900px){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"graph" "side" "code"}
+}
+@media (max-width:640px){
+  .data-grid{grid-template-columns:minmax(0,1fr)}
+  .big{font-size:22px}
+  .arrow{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .bar span{transition:none}
+}
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="name">
+      <h1>画像のデジタル化シミュレーター</h1>
+      <p class="sub">画像を<b>マス目（<ruby>画素<rt>がそ</rt></ruby>）</b>に区切って、色を<b>数</b>で表す</p>
+    </div>
+    <nav class="steps" aria-label="表示する段階">
+      <button type="button" class="step" data-stage="1"><span class="num">1</span><span class="lbl">元の画像<small>アナログ</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="2"><span class="num">2</span><span class="lbl"><ruby>標本化<rt>ひょうほんか</rt></ruby><small>マス目に区切る</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="3"><span class="num">3</span><span class="lbl"><ruby>量子化<rt>りょうしか</rt></ruby><small>色を段にする</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="4"><span class="num">4</span><span class="lbl"><ruby>符号化<rt>ふごうか</rt></ruby><small>2進数で書く</small></span></button>
+    </nav>
+    <label class="furi"><input type="checkbox" id="furigana" checked>ふりがな</label>
+  </header>
+
+  <div class="main">
+    <section class="card stagecard" aria-label="画像">
+      <p class="cap" id="cap"></p>
+      <div class="canvas-box" id="cvbox"><canvas id="cv" role="img" aria-label="画像"></canvas></div>
+      <p class="tap" id="tapHint"></p>
+    </section>
+
+    <section class="card controls" aria-label="設定">
+      <div class="ctl">
+        <span class="ctl-name">使う画像</span>
+        <div class="preset-grid">
+          <button type="button" class="pbtn" data-src="sunset"><b>夕やけ</b><small>空のグラデーション</small></button>
+          <button type="button" class="pbtn" data-src="chart"><b>色の帯</b><small>いろいろな色と明るさ</small></button>
+          <button type="button" class="pbtn" data-src="quiz"><b>なぞの絵</b><small><ruby>解像度<rt>かいぞうど</rt></ruby>クイズ</small></button>
+          <button type="button" class="pbtn" data-src="photo"><b>写真</b><small>iPadで撮る・えらぶ</small></button>
+        </div>
+        <div class="subbox" id="quizBox" hidden>
+          <div class="row"><span>もんだい</span><div class="seg"><button type="button" data-quiz="0">1</button><button type="button" data-quiz="1">2</button><button type="button" data-quiz="2">3</button></div></div>
+          <p class="note" id="quizAns" aria-live="polite"></p>
+          <button type="button" class="btn" id="revealBtn">こたえを見る</button>
+        </div>
+        <div class="subbox" id="photoBox" hidden>
+          <label class="btn primary" for="photo">写真を撮る・えらぶ</label>
+          <input type="file" id="photo" class="vh" accept="image/*">
+          <p class="note" id="photoStatus" aria-live="polite"></p>
+          <p class="caution">写真はこの端末の中だけで使い、どこにも送りません。人の顔や名前が写らないものをえらぼう。</p>
+        </div>
+      </div>
+      <div class="ctl sep">
+        <div class="ctl-head">
+          <span class="ctl-name"><ruby>解像度<rt>かいぞうど</rt></ruby>（マス目）</span>
+          <output class="big" id="resOut" for="res"></output>
+        </div>
+        <input type="range" id="res" min="0" max="5" step="1" value="2" aria-label="解像度">
+        <div class="ticks" aria-hidden="true"><span>8</span><span>16</span><span>32</span><span>64</span><span>128</span><span>256</span></div>
+        <p class="note" id="resNote"></p>
+      </div>
+      <div class="ctl sep">
+        <div class="row"><span>色の表し方</span><div class="seg"><button type="button" data-color="gray">白黒</button><button type="button" data-color="rgb">カラー</button></div></div>
+        <div class="ctl-head">
+          <span class="ctl-name" id="bitsName"></span>
+          <output class="big" id="bitsOut" for="bits"></output>
+        </div>
+        <input type="range" id="bits" min="0" max="4" step="1" value="2" aria-label="ビット数">
+        <div class="ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>8</span></div>
+        <p class="note" id="bitsNote"></p>
+      </div>
+      <div class="ctl sep">
+        <label class="check"><input type="checkbox" id="showGrid"><span>マス目の線を見る</span></label>
+        <label class="check"><input type="checkbox" id="compare"><span>元の画像と並べる</span></label>
+      </div>
+      <div class="presets sep">
+        <span>すぐに切りかえ</span>
+        <div class="preset-grid">
+          <button type="button" class="pbtn" data-preset="8,1,gray"><b>第3回のマス目</b><small>8×8・白黒・1ビット</small></button>
+          <button type="button" class="pbtn" data-preset="64,1,gray"><b><ruby>二値<rt>にち</rt></ruby><ruby>画像<rt>がぞう</rt></ruby></b><small>64×64・1ビット</small></button>
+          <button type="button" class="pbtn" data-preset="128,8,gray"><b>グレースケール</b><small>128×128・8ビット</small></button>
+          <button type="button" class="pbtn" data-preset="256,8,rgb"><b>フルカラー</b><small>256×256・24ビット</small></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card code" aria-label="記録するデータ">
+      <div class="code-head"><h2 id="codeTitle">記録するデータ</h2><p class="code-sum" id="codeSum"></p></div>
+      <p class="hint" id="codeHint"></p>
+      <p class="rowlabel" id="rowLabel" hidden></p>
+      <div class="chips" id="chips" hidden></div>
+      <p class="ccode" id="ccode" hidden></p>
+      <div class="stream-box" id="streamBox" hidden>
+        <p class="stream-lbl">実際に記録するのは、この 0 と 1 の列だけ（上のマスのぶん）</p>
+        <p class="stream" id="stream"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="card data" aria-labelledby="dataTitle">
+    <h2 id="dataTitle">データ量を計算する</h2>
+    <p class="formula" id="formula"></p>
+    <div class="data-grid">
+      <div class="data-in">
+        <div class="row"><span>画像の大きさ</span>
+          <div class="in-row">
+            <label class="vh" for="imgW">横の画素数</label><span class="note">横</span><input type="number" id="imgW" min="1" max="20000" step="1">
+            <span class="note">×</span>
+            <label class="vh" for="imgH">縦の画素数</label><span class="note">縦</span><input type="number" id="imgH" min="1" max="20000" step="1">
+          </div>
+        </div>
+        <div class="in-row">
+          <button type="button" class="mini" data-size="screen" id="sizeScreen">この画面</button>
+          <button type="button" class="mini" data-size="1920,1080">フルHD（1920×1080）</button>
+          <button type="button" class="mini" data-size="3840,2160">4K（3840×2160）</button>
+          <button type="button" class="mini" data-size="4032,3024">スマホの写真（4032×3024）</button>
+        </div>
+        <div class="row"><span>1<ruby>画素<rt>がそ</rt></ruby>のビット数</span><div class="seg"><button type="button" data-bpp="auto" id="bppAuto"></button><button type="button" data-bpp="1">1</button><button type="button" data-bpp="8">8</button><button type="button" data-bpp="24">24</button></div></div>
+        <label class="check sep"><input type="checkbox" id="video"><span><ruby>動画<rt>どうが</rt></ruby>にする（1秒に何枚も並べる）</span></label>
+        <div class="data-in" id="videoBox" hidden>
+          <div class="row"><span>フレームレート</span><div class="seg"><button type="button" data-fps="24">24fps</button><button type="button" data-fps="30">30fps</button><button type="button" data-fps="60">60fps</button></div></div>
+          <p class="note">映画・アニメ＝24fps／テレビ＝30fps（1秒に何枚の画像を並べるか）</p>
+          <div class="row"><label for="sec">時間</label><div class="in-row"><input type="number" id="sec" min="1" max="36000" step="1"><span class="note">秒</span><button type="button" class="mini" data-sec="1">1秒</button><button type="button" class="mini" data-sec="60">1分</button><button type="button" class="mini" data-sec="600">10分</button></div></div>
+        </div>
+        <p class="expr" id="expr"></p>
+      </div>
+      <div class="ladder" aria-label="単位の変換">
+        <div class="rung"><span class="v" id="vBit"></span><span class="u">bit</span></div>
+        <div class="op l1">↓ ÷8</div>
+        <div class="rung l1"><span class="v" id="vB"></span><span class="u">B</span></div>
+        <div class="op l2">↓ ÷1024</div>
+        <div class="rung l2"><span class="v" id="vKB"></span><span class="u">KB</span></div>
+        <div class="op l3">↓ ÷1024</div>
+        <div class="rung l3" id="rungMB"><span class="v" id="vMB"></span><span class="u">MB</span></div>
+        <div class="op l4" id="opGB">↓ ÷1024</div>
+        <div class="rung l4" id="rungGB"><span class="v" id="vGB"></span><span class="u">GB</span></div>
+      </div>
+    </div>
+    <div class="cmp"><div class="bar" id="barBox"><span id="barFill"></span></div><p class="note" id="cmpText"></p></div>
+    <p class="caution">※ 圧縮しないときの計算です。</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  const RES = [8, 16, 32, 64, 128, 256];
+  const BITS = [1, 2, 3, 4, 8];
+  const SRC = 1024;
+  const QUIZ = ['ねこ', 'いちご', 'じてんしゃ'];
+  const S = {
+    rI: 2, bI: 2, color: 'rgb', stage: 4, grid: true, compare: false,
+    src: 'sunset', quiz: 0, revealed: false, sel: null,
+    w: 1920, h: 1080, bpp: 'auto', video: false, fps: 30, sec: 60
+  };
+  const FONT = '"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif';
+  const MONO = '"BIZ UDGothic","Consolas","Menlo",monospace';
+  const $ = id => document.getElementById(id);
+  const nf = new Intl.NumberFormat('ja-JP');
+
+  function fmtN(x) {
+    if (Number.isInteger(x)) return nf.format(x);
+    const d = x >= 10 ? 1 : x >= 0.01 ? 2 : 4;
+    return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: d }).format(x);
+  }
+  function fmtPct(p) {
+    const d = p >= 10 ? 0 : p >= 1 ? 1 : 2;
+    return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: d }).format(p);
+  }
+  function fmtCnt(x) {
+    if (x >= 10) return nf.format(Math.floor(x));
+    return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 1 }).format(x);
+  }
+
+  const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = { ink: cssv('--ink'), muted: cssv('--muted'), rule: cssv('--rule'), panel: cssv('--panel') };
+
+  // ---- 元の画像（すべてこのページの中で描く） ----
+  function poly(g, pts, color) {
+    g.fillStyle = color; g.beginPath();
+    pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+    g.closePath(); g.fill();
+  }
+  function oval(g, x, y, rx, ry, color, rot = 0) {
+    g.fillStyle = color; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); g.fill();
+  }
+  function hueRGB(h) {
+    const f = n => { const k = (n + h * 6) % 6; return 255 * (1 - Math.max(0, Math.min(k, 4 - k, 1))); };
+    return [f(5), f(3), f(1)];
+  }
+
+  function drawSunset(g) {
+    const H = 640;
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#15225C'); sky.addColorStop(0.38, '#5B3C8C'); sky.addColorStop(0.72, '#E0645C'); sky.addColorStop(1, '#FFC56E');
+    g.fillStyle = sky; g.fillRect(0, 0, SRC, H);
+    const sx = 700, sy = 500, sr = 78;
+    const glow = g.createRadialGradient(sx, sy, sr * 0.9, sx, sy, sr * 4.2);
+    glow.addColorStop(0, 'rgba(255,226,160,0.7)'); glow.addColorStop(1, 'rgba(255,200,130,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, SRC, H);
+    oval(g, sx, sy, sr, sr, '#FFF0C8');
+    oval(g, 250, 210, 170, 14, 'rgba(255,190,170,0.5)');
+    oval(g, 340, 238, 110, 9, 'rgba(255,190,170,0.45)');
+    oval(g, 820, 150, 140, 11, 'rgba(255,170,160,0.4)');
+    const ridge = (pts, color) => poly(g, [[pts[0][0], H], ...pts, [pts[pts.length - 1][0], H]], color);
+    ridge([[0, 440], [70, 410], [150, 455], [260, 330], [350, 410], [450, 385], [560, 470], [660, 530], [780, 505], [900, 560], [1024, 540]], '#7D4F86');
+    ridge([[0, 500], [90, 470], [190, 540], [300, 500], [420, 590], [520, 640]], '#402A5C');
+    const sea = g.createLinearGradient(0, H, 0, SRC);
+    sea.addColorStop(0, '#F2A462'); sea.addColorStop(0.3, '#9A587F'); sea.addColorStop(1, '#1C2150');
+    g.fillStyle = sea; g.fillRect(0, H, SRC, SRC - H);
+    for (let k = 0; k < 14; k++) {
+      const w = 190 - k * 12;
+      g.fillStyle = `rgba(255,232,185,${(0.75 - k * 0.05).toFixed(2)})`;
+      g.fillRect(sx - w / 2 + (k % 2 ? 12 : -8), H + 8 + k * 26, w, 7);
+    }
+    poly(g, [[250, 720], [250, 800], [318, 800]], '#1A1633');
+    poly(g, [[212, 806], [338, 806], [316, 832], [234, 832]], '#1A1633');
+    g.strokeStyle = '#2A1D45'; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath();
+    g.moveTo(385, 172); g.quadraticCurveTo(402, 160, 418, 180); g.quadraticCurveTo(434, 160, 451, 172);
+    g.moveTo(470, 214); g.quadraticCurveTo(482, 206, 492, 220); g.quadraticCurveTo(503, 206, 515, 214);
+    g.stroke();
+  }
+
+  function drawChart(g) {
+    const top = 780, img = g.createImageData(SRC, SRC), d = img.data;
+    for (let x = 0; x < SRC; x++) {
+      const hc = hueRGB(x / SRC), gv = x / (SRC - 1) * 255;
+      for (let y = 0; y < SRC; y++) {
+        const i = (y * SRC + x) * 4;
+        let r, gg, b;
+        if (y < top) {
+          const t = y / (top - 1);
+          if (t < 0.5) { const m = t * 2; r = 255 + (hc[0] - 255) * m; gg = 255 + (hc[1] - 255) * m; b = 255 + (hc[2] - 255) * m; }
+          else { const m = 1 - (t - 0.5) * 2; r = hc[0] * m; gg = hc[1] * m; b = hc[2] * m; }
+        } else if (y < top + 36) { r = gg = b = 255; }
+        else { r = gg = b = gv; }
+        d[i] = r; d[i + 1] = gg; d[i + 2] = b; d[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function drawCat(g) {
+    g.fillStyle = '#2D5470'; g.fillRect(0, 0, SRC, SRC);
+    const fur = '#E8923A', dark = '#B8611E', pink = '#F4A7B0';
+    poly(g, [[240, 440], [292, 120], [480, 300]], fur);
+    poly(g, [[784, 440], [732, 120], [544, 300]], fur);
+    poly(g, [[282, 390], [308, 205], [430, 315]], pink);
+    poly(g, [[742, 390], [716, 205], [594, 315]], pink);
+    oval(g, 512, 590, 335, 290, fur);
+    [-72, 0, 72].forEach(dx => oval(g, 512 + dx, 360, 22, 66, dark, dx * 0.004));
+    oval(g, 438, 720, 105, 82, '#FBE9D2');
+    oval(g, 586, 720, 105, 82, '#FBE9D2');
+    [388, 636].forEach(ex => {
+      oval(g, ex, 555, 64, 72, '#FFFFFF');
+      oval(g, ex, 562, 50, 60, '#6FBF4A');
+      oval(g, ex, 564, 15, 48, '#14202B');
+      oval(g, ex + 16, 532, 11, 11, '#FFFFFF');
+    });
+    poly(g, [[478, 655], [546, 655], [512, 698]], '#E86C84');
+    g.lineCap = 'round';
+    g.strokeStyle = '#6B3A1A'; g.lineWidth = 10; g.beginPath();
+    g.moveTo(512, 698); g.lineTo(512, 732); g.quadraticCurveTo(472, 776, 432, 748);
+    g.moveTo(512, 732); g.quadraticCurveTo(552, 776, 592, 748);
+    g.stroke();
+    g.strokeStyle = '#FFF3E0'; g.lineWidth = 7; g.beginPath();
+    [[700, 650], [728, 722], [756, 800]].forEach(([y1, y2]) => {
+      g.moveTo(340, y1 + 40); g.lineTo(120, y2 - 40);
+      g.moveTo(684, y1 + 40); g.lineTo(904, y2 - 40);
+    });
+    g.stroke();
+  }
+
+  function drawStrawberry(g) {
+    g.fillStyle = '#E3F1DC'; g.fillRect(0, 0, SRC, SRC);
+    const body = new Path2D();
+    body.moveTo(512, 930);
+    body.bezierCurveTo(300, 820, 170, 560, 230, 380);
+    body.bezierCurveTo(280, 250, 420, 270, 512, 300);
+    body.bezierCurveTo(604, 270, 744, 250, 794, 380);
+    body.bezierCurveTo(854, 560, 724, 820, 512, 930);
+    g.fillStyle = '#DD2C3C'; g.fill(body);
+    g.save(); g.clip(body);
+    oval(g, 780, 640, 200, 380, 'rgba(110,0,20,0.18)', -0.2);
+    oval(g, 350, 500, 42, 100, 'rgba(255,255,255,0.35)', -0.4);
+    g.restore();
+    for (let row = 0, y = 400; y < 880; row++, y += 64) {
+      for (let x = 190 + (row % 2) * 40; x < 840; x += 80) {
+        if (g.isPointInPath(body, x, y + 22) && g.isPointInPath(body, x, y - 22) && g.isPointInPath(body, x - 22, y) && g.isPointInPath(body, x + 22, y)) {
+          oval(g, x, y, 9, 15, '#F7D04A');
+        }
+      }
+    }
+    for (let k = 0; k < 7; k++) {
+      const a = Math.PI * (0.95 - 0.9 * k / 6);
+      oval(g, 512 + Math.cos(a) * 95, 300 + Math.sin(a) * 45, 110, 32, '#3E9B3A', a);
+    }
+    g.strokeStyle = '#3E7D2A'; g.lineWidth = 26; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(512, 300); g.quadraticCurveTo(512, 210, 548, 160); g.stroke();
+  }
+
+  function drawBicycle(g) {
+    g.fillStyle = '#EAF1F8'; g.fillRect(0, 0, SRC, SRC);
+    g.fillStyle = '#C9D6E2'; g.fillRect(0, 830, SRC, SRC - 830);
+    const R = [280, 640], F = [760, 640], BB = [500, 650], ST = [440, 400], HT = [700, 410], HB = [688, 470];
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const [cx, cy] of [R, F]) {
+      g.strokeStyle = '#8795A3'; g.lineWidth = 5; g.beginPath();
+      for (let k = 0; k < 12; k++) {
+        const a = k * Math.PI / 6;
+        g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 170, cy + Math.sin(a) * 170);
+      }
+      g.stroke();
+      g.strokeStyle = '#2B3440'; g.lineWidth = 26; g.beginPath(); g.arc(cx, cy, 180, 0, Math.PI * 2); g.stroke();
+      oval(g, cx, cy, 20, 20, '#2B3440');
+    }
+    g.strokeStyle = '#5A6672'; g.lineWidth = 6; g.beginPath(); g.moveTo(BB[0], BB[1] - 30); g.lineTo(R[0], R[1] - 14); g.moveTo(BB[0], BB[1] + 30); g.lineTo(R[0], R[1] + 14); g.stroke();
+    g.strokeStyle = '#1F8A8A'; g.lineWidth = 24; g.beginPath();
+    g.moveTo(...R); g.lineTo(...BB); g.lineTo(...ST); g.closePath();
+    g.moveTo(...ST); g.lineTo(...HT); g.lineTo(...HB); g.lineTo(...BB);
+    g.stroke();
+    g.lineWidth = 18; g.beginPath(); g.moveTo(...HB); g.lineTo(...F); g.stroke();
+    g.strokeStyle = '#2B3440'; g.lineWidth = 16; g.beginPath();
+    g.moveTo(...ST); g.lineTo(425, 340);
+    g.moveTo(...HT); g.lineTo(690, 330); g.lineTo(640, 320); g.moveTo(690, 330); g.quadraticCurveTo(760, 330, 770, 380);
+    g.moveTo(...BB); g.lineTo(545, 735);
+    g.stroke();
+    oval(g, 408, 330, 72, 20, '#2B3440');
+    oval(g, 545, 740, 34, 10, '#2B3440');
+  }
+
+  let photoImg = null, photoVer = 0;
+  function drawPhoto(g) {
+    if (photoImg) {
+      const w = photoImg.naturalWidth, h = photoImg.naturalHeight, s = Math.min(w, h);
+      g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, SRC, SRC);
+      g.drawImage(photoImg, (w - s) / 2, (h - s) / 2, s, s, 0, 0, SRC, SRC);
+      return;
+    }
+    g.fillStyle = '#DCE3EA'; g.fillRect(0, 0, SRC, SRC);
+    poly(g, [[420, 370], [452, 318], [572, 318], [604, 370]], '#8795A3');
+    g.fillStyle = '#8795A3'; g.fillRect(262, 362, 500, 340);
+    oval(g, 512, 532, 122, 122, '#F7F9FB');
+    oval(g, 512, 532, 82, 82, '#566472');
+  }
+
+  const sources = new Map(), blockCache = new Map();
+  const srcKey = () => S.src === 'quiz' ? 'quiz' + S.quiz : S.src === 'photo' ? 'photo' + photoVer : S.src;
+  function source(key) {
+    let s = sources.get(key);
+    if (s) return s;
+    const c = document.createElement('canvas');
+    c.width = c.height = SRC;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    if (key === 'sunset') drawSunset(g);
+    else if (key === 'chart') drawChart(g);
+    else if (key === 'quiz0') drawCat(g);
+    else if (key === 'quiz1') drawStrawberry(g);
+    else if (key === 'quiz2') drawBicycle(g);
+    else drawPhoto(g);
+    s = { cv: c, data: g.getImageData(0, 0, SRC, SRC).data };
+    sources.set(key, s);
+    return s;
+  }
+
+  // ---- 標本化（マスごとに色をならす）と量子化 ----
+  function blocks(key, n) {
+    const ck = key + ':' + n;
+    let out = blockCache.get(ck);
+    if (out) return out;
+    const d = source(key).data, b = SRC / n;
+    out = new Float32Array(n * n * 3);
+    for (let y = 0; y < SRC; y++) {
+      const row = ((y / b) | 0) * n;
+      for (let x = 0; x < SRC; x++) {
+        const i = (y * SRC + x) * 4, o = (row + ((x / b) | 0)) * 3;
+        out[o] += d[i]; out[o + 1] += d[i + 1]; out[o + 2] += d[i + 2];
+      }
+    }
+    const inv = 1 / (b * b);
+    for (let i = 0; i < out.length; i++) out[i] *= inv;
+    blockCache.set(ck, out);
+    return out;
+  }
+  function pixels() {
+    const n = RES[S.rI], bits = BITS[S.bI], L = 2 ** bits, ch = S.color === 'rgb' ? 3 : 1;
+    const avg = blocks(srcKey(), n), N = n * n, quantized = S.stage >= 3;
+    const q = new Uint8Array(N * ch), disp = new Uint8ClampedArray(N * 4);
+    for (let p = 0; p < N; p++) {
+      const o = p * 4;
+      if (ch === 1) {
+        const y = 0.299 * avg[p * 3] + 0.587 * avg[p * 3 + 1] + 0.114 * avg[p * 3 + 2];
+        const k = Math.round(y / 255 * (L - 1));
+        q[p] = k;
+        disp[o] = disp[o + 1] = disp[o + 2] = quantized ? Math.round(k * 255 / (L - 1)) : Math.round(y);
+      } else {
+        for (let c = 0; c < 3; c++) {
+          const v = avg[p * 3 + c], k = Math.round(v / 255 * (L - 1));
+          q[p * 3 + c] = k;
+          disp[o + c] = quantized ? Math.round(k * 255 / (L - 1)) : Math.round(v);
+        }
+      }
+      disp[o + 3] = 255;
+    }
+    return { n, bits, L, ch, bpp: bits * ch, q, disp };
+  }
+
+  // ---- 画像を描く ----
+  const cv = $('cv'), box = $('cvbox'), tiny = document.createElement('canvas');
+  let hit = null, lastP = null;
+  const locked = () => S.src === 'quiz' && !S.revealed;
+  const bin = (k, bits) => k.toString(2).padStart(bits, '0');
+
+  function draw(P) {
+    const bw = Math.max(260, Math.floor(box.clientWidth));
+    const two = S.compare && !locked() && S.stage >= 2;
+    const gap = two ? 16 : 0, head = two ? 26 : 0;
+    const maxSide = Math.max(240, Math.min(640, window.innerHeight * 0.64));
+    const side = Math.floor(Math.min(two ? (bw - gap) / 2 : bw, maxSide));
+    const w = two ? side * 2 + gap : side, h = side + head;
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const snap = v => Math.round(v * dpr) / dpr;
+
+    const drawOrig = (ox, oy) => {
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(source(srcKey()).cv, ox, oy, side, side);
+      g.strokeStyle = C.rule; g.lineWidth = 1; g.strokeRect(ox + 0.5, oy + 0.5, side - 1, side - 1);
+    };
+
+    if (two) {
+      g.fillStyle = C.muted; g.font = `bold 14px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillText('元の画像（アナログ）', side / 2, 3);
+      g.fillText(`デジタル（${P.n}×${P.n}・1画素${P.bpp}ビット）`, side + gap + side / 2, 3);
+      drawOrig(0, head);
+    }
+    if (S.stage === 1) { drawOrig(0, 0); hit = null; return; }
+
+    const ox = two ? side + gap : 0, oy = head, n = P.n, cell = side / n;
+    if (n <= 64) {
+      for (let j = 0; j < n; j++) {
+        const y0 = snap(oy + j * cell), y1 = snap(oy + (j + 1) * cell);
+        for (let i = 0; i < n; i++) {
+          const k = (j * n + i) * 4, x0 = snap(ox + i * cell), x1 = snap(ox + (i + 1) * cell);
+          g.fillStyle = `rgb(${P.disp[k]},${P.disp[k + 1]},${P.disp[k + 2]})`;
+          g.fillRect(x0, y0, x1 - x0, y1 - y0);
+        }
+      }
+    } else {
+      tiny.width = n; tiny.height = n;
+      tiny.getContext('2d').putImageData(new ImageData(P.disp, n, n), 0, 0);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(tiny, ox, oy, side, side);
+      g.imageSmoothingEnabled = true;
+    }
+
+    if (S.grid && cell >= 12) {
+      const t = (cell >= 30 ? 2 : 1) / dpr;
+      g.fillStyle = 'rgba(20,32,43,.32)';
+      for (let i = 0; i <= n; i++) {
+        const x = snap(ox + i * cell), y = snap(oy + i * cell);
+        g.fillRect(Math.min(x, ox + side - t), oy, t, side);
+        g.fillRect(ox, Math.min(y, oy + side - t), side, t);
+      }
+    }
+
+    if (S.stage >= 3) {
+      const lines = P.ch, longest = S.stage >= 4 ? '0'.repeat(P.bits) : String(P.L - 1);
+      g.font = `bold 10px ${S.stage >= 4 ? MONO : FONT}`;
+      const w10 = Math.max(1, g.measureText(longest).width);
+      const fs = Math.min(18, (cell - 8) / w10 * 10, (cell - 6) / (lines * 1.2));
+      if (fs >= 9) {
+        g.font = `bold ${fs.toFixed(1)}px ${S.stage >= 4 ? MONO : FONT}`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (let j = 0; j < n; j++) {
+          for (let i = 0; i < n; i++) {
+            const p = j * n + i, k = p * 4;
+            const lum = 0.299 * P.disp[k] + 0.587 * P.disp[k + 1] + 0.114 * P.disp[k + 2];
+            g.fillStyle = lum > 140 ? '#14202B' : '#FFFFFF';
+            const cx = ox + (i + 0.5) * cell, cy = oy + (j + 0.5) * cell;
+            for (let c = 0; c < lines; c++) {
+              const v = P.q[p * lines + c], t = S.stage >= 4 ? bin(v, P.bits) : String(v);
+              g.fillText(t, cx, cy + (c - (lines - 1) / 2) * fs * 1.2);
+            }
+          }
+        }
+      }
+    }
+
+    if (S.sel && S.stage >= 3) {
+      const pad = Math.max(0, (12 - cell) / 2);
+      const x0 = ox + S.sel.x * cell - pad, y0 = oy + S.sel.y * cell - pad, sz = cell + pad * 2;
+      g.lineWidth = 4; g.strokeStyle = C.ink; g.strokeRect(x0, y0, sz, sz);
+      g.lineWidth = 1.5; g.strokeStyle = '#FFFFFF'; g.strokeRect(x0 + 2.75, y0 + 2.75, sz - 5.5, sz - 5.5);
+    }
+    g.strokeStyle = C.rule; g.lineWidth = 1; g.strokeRect(ox + 0.5, oy + 0.5, side - 1, side - 1);
+    hit = { ox, oy, side, n };
+  }
+
+  // ---- 記録するデータ ----
+  function renderCode(P) {
+    const title = $('codeTitle'), sum = $('codeSum'), hint = $('codeHint'), chips = $('chips'),
+      rowl = $('rowLabel'), sb = $('streamBox'), cc = $('ccode'), n = P.n, N = n * n;
+    if (S.stage < 3) {
+      title.textContent = '記録するデータ';
+      chips.hidden = true; sb.hidden = true; rowl.hidden = true; cc.hidden = true; hint.hidden = false;
+      sum.innerHTML = S.stage === 2 ? `横${n}×縦${n}＝<b>${nf.format(N)}画素</b>` : '';
+      hint.textContent = S.stage === 1
+        ? '「2 標本化」で、画像をマス目（画素）に区切ります。'
+        : '「3 量子化」でマスの色が数に、「4 符号化」で記録する 0 と 1 が出ます。';
+      return;
+    }
+    hint.hidden = true; chips.hidden = false; rowl.hidden = false;
+    const code = S.stage >= 4, sel = S.sel || { x: 0, y: Math.floor(n / 2) };
+    const cnt = Math.min(n, P.ch === 3 ? 8 : 16);
+    const start = Math.max(0, Math.min(sel.x - Math.floor(cnt / 2) + 1, n - cnt));
+
+    const frag = document.createDocumentFragment(), bits = [];
+    for (let x = start; x < start + cnt; x++) {
+      const p = sel.y * n + x, o = p * 4;
+      const d = document.createElement('button');
+      d.type = 'button'; d.className = 'chip'; d.dataset.x = x; d.dataset.y = sel.y;
+      if (S.sel && S.sel.x === x) d.setAttribute('aria-current', 'true');
+      let html = `<span class="i">${x + 1}</span><span class="sw" style="background:rgb(${P.disp[o]},${P.disp[o + 1]},${P.disp[o + 2]})"></span>`;
+      if (P.ch === 1) {
+        html += `<span class="d">${P.q[p]}</span>` + (code ? `<span class="bn">${bin(P.q[p], P.bits)}</span>` : '');
+        bits.push(bin(P.q[p], P.bits));
+      } else {
+        html += '<span class="rgb">' + ['r', 'g', 'b'].map((c, i) =>
+          `<span class="${c}"><i>${'RGB'[i]}</i><b>${P.q[p * 3 + i]}</b>${code ? `<code>${bin(P.q[p * 3 + i], P.bits)}</code>` : ''}</span>`).join('') + '</span>';
+        bits.push(['r', 'g', 'b'].map((c, i) => `<span class="${c}">${bin(P.q[p * 3 + i], P.bits)}</span>`).join(''));
+      }
+      d.innerHTML = html;
+      d.setAttribute('aria-label', `左から${x + 1}番目のマス`);
+      frag.appendChild(d);
+    }
+    chips.replaceChildren(frag);
+
+    rowl.innerHTML = `上から <b>${sel.y + 1}</b> 行目の、左から <b>${start + 1}〜${start + cnt}</b> 番目のマス`
+      + (n > cnt ? ` <small>（この行は全部で${n}マス）</small>` : '')
+      + ' <small>画像のマスをタップすると、場所を変えられます</small>';
+
+    if (P.ch === 3) {
+      cc.hidden = false;
+      if (P.bits === 8) {
+        const p = sel.y * n + (S.sel ? sel.x : start), hx = c => P.q[p * 3 + c].toString(16).toUpperCase().padStart(2, '0');
+        cc.innerHTML = `<span class="sw" style="background:#${hx(0)}${hx(1)}${hx(2)}"></span>`
+          + `${S.sel ? 'えらんだマス' : '左はしのマス'}をカラーコードで書くと <span class="hex">#<span class="r">${hx(0)}</span><span class="g">${hx(1)}</span><span class="b">${hx(2)}</span></span>`
+          + `<span class="note">（赤・緑・青を 16進数 2けたずつ）</span>`;
+      } else {
+        cc.innerHTML = '<span class="note">「1色あたり8ビット」にすると、カラーコード（#RRGGBB）で書けます</span>';
+      }
+    } else {
+      cc.hidden = true;
+    }
+
+    if (code) {
+      title.innerHTML = '<ruby>符号化<rt>ふごうか</rt></ruby>：記録するデータ（2進数）';
+      sb.hidden = false;
+      $('stream').innerHTML = bits.join(' ') + (n > cnt ? ' …' : '');
+      sum.innerHTML = `この画像ぜんぶ：<b>${nf.format(N)}画素</b> × <b>${P.bpp}ビット</b> ＝ <b>${nf.format(N * P.bpp)}ビット</b>`;
+    } else {
+      title.innerHTML = '<ruby>量子化<rt>りょうしか</rt></ruby>：マスの色を表す数';
+      sb.hidden = true;
+      sum.innerHTML = P.ch === 1
+        ? `この画像ぜんぶ：<b>${nf.format(N)}個</b>の数`
+        : `この画像ぜんぶ：<b>${nf.format(N)}画素</b> × 赤緑青の3つ ＝ <b>${nf.format(N * 3)}個</b>の数`;
+    }
+  }
+
+  // ---- データ量 ----
+  function renderData(P) {
+    const bpp = S.bpp === 'auto' ? P.bpp : Number(S.bpp);
+    const bit = S.w * S.h * bpp * (S.video ? S.fps * S.sec : 1), B = bit / 8, KB = B / 1024, MB = KB / 1024, GB = MB / 1024;
+    $('formula').innerHTML = 'データ量（bit）＝ <b>横の<ruby>画素数<rt>がそすう</rt></ruby></b> × <b>縦の<ruby>画素数<rt>がそすう</rt></ruby></b> × <b>1<ruby>画素<rt>がそ</rt></ruby>のビット<ruby>数<rt>すう</rt></ruby></b>'
+      + (S.video ? ' × <b>フレームレート（fps）</b> × <b><ruby>時間<rt>じかん</rt></ruby>（<ruby>秒<rt>びょう</rt></ruby>）</b>' : '');
+    $('expr').textContent = `${nf.format(S.w)} × ${nf.format(S.h)} × ${bpp}` + (S.video ? ` × ${S.fps} × ${nf.format(S.sec)}` : '') + ' ＝';
+    $('vBit').textContent = fmtN(bit);
+    $('vB').textContent = fmtN(B);
+    $('vKB').textContent = fmtN(KB);
+    $('vMB').textContent = fmtN(MB);
+    $('vGB').textContent = fmtN(GB);
+    $('opGB').hidden = !S.video; $('rungGB').hidden = !S.video;
+    $('rungMB').classList.toggle('final', !S.video);
+    $('rungGB').classList.toggle('final', S.video);
+    $('bppAuto').textContent = `上の設定（${P.bpp}）`;
+    $('sizeScreen').textContent = `この画面（${P.n}×${P.n}）`;
+
+    const PHONE = 128 * 1024 ** 3;
+    if (S.video) {
+      const pct = B / PHONE * 100, min = PHONE / (B / S.sec) / 60;
+      $('barBox').hidden = false;
+      $('barFill').style.width = Math.max(0.6, Math.min(100, pct)) + '%';
+      $('cmpText').innerHTML = `ほかに何も入っていない <b>128GB</b> のスマホに <b>約${fmtCnt(min)}分</b>ぶん入る計算`
+        + (pct > 100 ? '（この長さでは入りきらない）' : `（この長さで 128GB の <b>${fmtPct(pct)}%</b> を使う）`);
+    } else {
+      $('barBox').hidden = true;
+      $('cmpText').innerHTML = `ほかに何も入っていない <b>128GB</b> のスマホに <b>約${fmtCnt(PHONE / B)}枚</b>入る計算`;
+    }
+  }
+
+  // ---- 全体の更新 ----
+  function pressed(sel, key, val) {
+    document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[key] === String(val))));
+  }
+  function update() {
+    if (locked() && S.stage === 1) S.stage = 2;
+    const P = pixels(), n = P.n, N = n * n, L = P.L, bits = P.bits;
+    lastP = P;
+    if (S.sel && (S.sel.x >= n || S.sel.y >= n)) S.sel = null;
+
+    $('res').value = S.rI; $('bits').value = S.bI;
+    $('res').setAttribute('aria-valuetext', `${n}×${n}`);
+    $('bits').setAttribute('aria-valuetext', `${bits}ビット`);
+    $('resOut').innerHTML = `${n}<small>×</small>${n}`;
+    $('resNote').innerHTML = `横 <b>${n}</b> × 縦 <b>${n}</b> ＝ <b>${nf.format(N)}<ruby>画素<rt>がそ</rt></ruby></b><span class="nw">（マスの数）</span>`;
+    $('bitsOut').innerHTML = `${bits}<small>ビット</small>`;
+    if (P.ch === 1) {
+      $('bitsName').textContent = '明るさのビット数';
+      const kind = bits === 1 ? '（白と黒だけ＝<ruby>二値<rt>にち</rt></ruby><ruby>画像<rt>がぞう</rt></ruby>）' : bits === 8 ? '（グレースケール）' : '';
+      $('bitsNote').innerHTML = `明るさを <b>${L}段</b>（0〜${L - 1}）に分ける → <span class="nw">1画素＝<b>${bits}ビット</b></span>${kind}`;
+    } else {
+      $('bitsName').textContent = '1色あたりのビット数';
+      $('bitsNote').innerHTML = `赤・緑・青を それぞれ <b>${L}段</b>（0〜${L - 1}） → ${L}×${L}×${L}＝<b>${nf.format(L ** 3)}色</b> → <span class="nw">1画素＝<b>${bits * 3}ビット</b>（${bits}×3）</span>`
+        + (bits === 8 ? '<span class="nw">＝<b>24ビットフルカラー</b></span>' : '');
+    }
+
+    document.querySelectorAll('.step').forEach(b => {
+      const s = Number(b.dataset.stage);
+      b.setAttribute('aria-pressed', String(s === S.stage));
+      b.classList.toggle('done', s < S.stage);
+      b.disabled = s === 1 && locked();
+      b.title = b.disabled ? 'こたえを見るまで、元の画像はかくしています' : '';
+    });
+    pressed('[data-src]', 'src', S.src);
+    pressed('[data-quiz]', 'quiz', S.quiz);
+    pressed('[data-color]', 'color', S.color);
+    pressed('[data-bpp]', 'bpp', S.bpp);
+    pressed('[data-fps]', 'fps', S.fps);
+    document.querySelectorAll('[data-preset]').forEach(b => {
+      const [r, bt, c] = b.dataset.preset.split(',');
+      b.setAttribute('aria-pressed', String(Number(r) === n && Number(bt) === bits && c === S.color));
+    });
+
+    $('quizBox').hidden = S.src !== 'quiz';
+    $('quizAns').innerHTML = S.revealed
+      ? `こたえ：<b>${QUIZ[S.quiz]}</b>`
+      : 'なにの絵かな？ <b>8×8</b> から、<ruby>解像度<rt>かいぞうど</rt></ruby>を少しずつ上げてみよう';
+    $('revealBtn').textContent = S.revealed ? 'もう一度かくす' : 'こたえを見る';
+    $('photoBox').hidden = S.src !== 'photo';
+    if (S.src === 'photo' && !photoImg && !$('photoStatus').textContent) $('photoStatus').textContent = 'まだ写真がありません。上のボタンから撮るか、えらんでね。';
+
+    $('showGrid').checked = S.grid;
+    $('compare').checked = S.compare && !locked();
+    $('compare').disabled = locked() || S.stage < 2;
+    $('imgW').value = S.w; $('imgH').value = S.h; $('sec').value = S.sec;
+    $('video').checked = S.video;
+    $('videoBox').hidden = !S.video;
+
+    $('cap').innerHTML = S.stage === 1
+      ? (S.src === 'photo' && !photoImg ? '<b>写真</b>をえらぶと、ここに出ます' : '<b>元の画像</b>（アナログ）：マス目がなく、色がなめらかにつながっている')
+      : S.stage === 2
+        ? `<b><ruby>標本化<rt>ひょうほんか</rt></ruby></b>：横${n}×縦${n}のマス目に区切り、1マスを1色にした（${nf.format(N)}画素）`
+        : S.stage === 3
+          ? (P.ch === 1 ? `<b><ruby>量子化<rt>りょうしか</rt></ruby></b>：明るさを${L}段に丸めた` : `<b><ruby>量子化<rt>りょうしか</rt></ruby></b>：赤・緑・青をそれぞれ${L}段に丸めた（${nf.format(L ** 3)}色）`)
+          : `<b><ruby>符号化<rt>ふごうか</rt></ruby></b>：段の番号を2進数で書く（1画素＝${P.bpp}ビット）`;
+    $('tapHint').textContent = S.stage >= 3 ? 'マスをタップすると、下にそのマスの数が出ます' : '';
+    cv.setAttribute('aria-label', S.stage === 1 ? '元の画像'
+      : `横${n}×縦${n}のマス目に区切り、${P.ch === 1 ? '明るさ' : '赤・緑・青'}を${L}段に丸めた画像`);
+
+    renderCode(P);
+    renderData(P);
+    draw(P);
+  }
+
+  // ---- 操作 ----
+  $('res').addEventListener('input', e => {
+    const old = RES[S.rI];
+    S.rI = Number(e.target.value);
+    const nn = RES[S.rI];
+    if (S.sel) S.sel = { x: Math.floor((S.sel.x + 0.5) * nn / old), y: Math.floor((S.sel.y + 0.5) * nn / old) };
+    update();
+  });
+  $('bits').addEventListener('input', e => { S.bI = Number(e.target.value); update(); });
+  document.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => { S.stage = Number(b.dataset.stage); update(); }));
+  document.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => { S.color = b.dataset.color; update(); }));
+  document.querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.src;
+    if (v === 'quiz' && S.src !== 'quiz') { S.revealed = false; S.rI = 0; S.sel = null; }
+    S.src = v;
+    update();
+    if (v === 'photo' && !photoImg) $('photo').click();
+  }));
+  document.querySelectorAll('[data-quiz]').forEach(b => b.addEventListener('click', () => {
+    S.quiz = Number(b.dataset.quiz); S.revealed = false; S.rI = 0; S.sel = null;
+    update();
+  }));
+  $('revealBtn').addEventListener('click', () => {
+    S.revealed = !S.revealed;
+    if (S.revealed) S.stage = 1;
+    update();
+  });
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+    const [r, bt, c] = b.dataset.preset.split(',');
+    S.rI = RES.indexOf(Number(r)); S.bI = BITS.indexOf(Number(bt)); S.color = c; S.sel = null;
+    update();
+  }));
+  $('showGrid').addEventListener('change', e => { S.grid = e.target.checked; update(); });
+  $('compare').addEventListener('change', e => { S.compare = e.target.checked; update(); });
+  $('furigana').addEventListener('change', e => { document.body.classList.toggle('no-rt', !e.target.checked); });
+
+  cv.addEventListener('click', e => {
+    if (!hit || S.stage < 3) return;
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left - hit.ox, y = e.clientY - r.top - hit.oy;
+    if (x < 0 || y < 0 || x >= hit.side || y >= hit.side) return;
+    S.sel = { x: Math.floor(x / hit.side * hit.n), y: Math.floor(y / hit.side * hit.n) };
+    update();
+  });
+  $('chips').addEventListener('click', e => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    S.sel = { x: Number(c.dataset.x), y: Number(c.dataset.y) };
+    update();
+  });
+
+  $('photo').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f), img = new Image();
+    $('photoStatus').textContent = '読みこみ中…';
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      photoImg = img;
+      for (const k of [...sources.keys()]) if (k.startsWith('photo')) sources.delete(k);
+      for (const k of [...blockCache.keys()]) if (k.startsWith('photo')) blockCache.delete(k);
+      photoVer++;
+      S.src = 'photo'; S.sel = null;
+      $('photoStatus').textContent = '読みこめました。解像度やビット数を変えてみよう（正方形に切りぬいています）。';
+      e.target.value = '';
+      update();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      $('photoStatus').textContent = 'この写真は読みこめませんでした。別の写真でためしてください。';
+      e.target.value = '';
+    };
+    img.src = url;
+  });
+
+  const readInt = (el, lo, hi, cur) => {
+    const v = Math.round(Number(el.value));
+    return Number.isFinite(v) && v >= lo && v <= hi ? v : cur;
+  };
+  $('imgW').addEventListener('change', e => { S.w = readInt(e.target, 1, 20000, S.w); update(); });
+  $('imgH').addEventListener('change', e => { S.h = readInt(e.target, 1, 20000, S.h); update(); });
+  $('sec').addEventListener('change', e => { S.sec = readInt(e.target, 1, 36000, S.sec); update(); });
+  document.querySelectorAll('[data-size]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.size === 'screen') { S.w = S.h = RES[S.rI]; }
+    else { [S.w, S.h] = b.dataset.size.split(',').map(Number); }
+    update();
+  }));
+  document.querySelectorAll('[data-bpp]').forEach(b => b.addEventListener('click', () => { S.bpp = b.dataset.bpp; update(); }));
+  document.querySelectorAll('[data-fps]').forEach(b => b.addEventListener('click', () => { S.fps = Number(b.dataset.fps); update(); }));
+  document.querySelectorAll('[data-sec]').forEach(b => b.addEventListener('click', () => { S.sec = Number(b.dataset.sec); update(); }));
+  $('video').addEventListener('change', e => { S.video = e.target.checked; update(); });
+
+  let lastW = 0;
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => { const w = box.clientWidth; if (w !== lastW) { lastW = w; if (lastP) draw(lastP); } }).observe(box);
+  }
+  window.addEventListener('resize', () => { if (lastP) draw(lastP); });
+
+  update();
+})();
+</script>
+
+</body>
+</html>
