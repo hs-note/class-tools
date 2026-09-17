@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>音のデジタル化シミュレーター</title>
+<style>
+:root{
+  color-scheme: light;
+  --ground:#E9EEF3;
+  --panel:#FFFFFF;
+  --plot:#F7F9FB;
+  --chip:#FFF7F1;
+  --ink:#14202B;
+  --muted:#566472;
+  --rule:#CFD8E1;
+  --grid:#DCE3EA;
+  --analog:#2E5FCC;
+  --analog-soft:#A9BEEB;
+  --digital:#E0560E;
+  --digital-soft:#F6CDB3;
+  --err:rgba(224,86,14,.22);
+  --rec:#B42318;
+  --focus:#1B4FB8;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Consolas","Menlo",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--ground)}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:14px 36px;-webkit-text-size-adjust:100%}
+.wrap{max-width:1480px;margin-inline:auto;display:grid;gap:14px}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(20px,2.1vw,28px);letter-spacing:.02em}
+h2{font-size:18px}
+p{margin:0}
+rt{font-size:.55em;font-weight:400;letter-spacing:0}
+.no-rt rt{display:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* 上の帯 */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
+.name{display:grid;gap:2px}
+.sub{color:var(--muted);font-size:14px}
+.sub b{color:var(--ink)}
+.steps{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.step{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1.5px solid var(--rule);border-radius:10px;background:var(--panel);cursor:pointer;text-align:left}
+.step:hover{border-color:var(--ink)}
+.step .num{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--grid);font-weight:700;font-variant-numeric:tabular-nums}
+.step .lbl{display:grid;line-height:1.25;font-weight:700}
+.step small{font-size:12px;font-weight:400;color:var(--muted)}
+.step.done{border-color:var(--analog-soft)}
+.step.done .num{background:var(--analog-soft)}
+.step[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.step[aria-pressed="true"] .num{background:var(--digital);color:#fff}
+.step[aria-pressed="true"] small{color:#D5DDE5}
+.arrow{color:var(--muted)}
+.furi{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.furi input{width:18px;height:18px;accent-color:var(--ink)}
+
+/* 本体 */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 310px;grid-template-areas:"graph side" "code side";gap:14px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
+.stagecard{grid-area:graph;display:grid;gap:10px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:14px;color:var(--muted)}
+.key{display:inline-flex;align-items:center;gap:6px}
+.key i{display:inline-block;flex:none}
+.sw-line{width:26px;border-top:3.5px solid var(--analog)}
+.sw-dig{width:26px;border-top:3.5px solid var(--digital)}
+.sw-dot{width:12px;height:12px;border-radius:50%;background:var(--digital)}
+.sw-ring{width:12px;height:12px;border-radius:50%;border:2px solid var(--muted);background:var(--panel)}
+.canvas-box{width:100%}
+canvas{display:block;width:100%}
+
+.code{grid-area:code;display:grid;gap:8px}
+.code-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 16px}
+.code-sum{font-size:15px}
+.code-sum b{font-variant-numeric:tabular-nums}
+.hint{color:var(--muted);font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:grid;justify-items:center;min-width:40px;padding:3px 8px 4px;border:1px solid var(--digital-soft);background:var(--chip);border-radius:8px;font-variant-numeric:tabular-nums}
+.chip .i{font-size:10px;color:var(--muted);line-height:1}
+.chip .d{font-size:18px;font-weight:700;line-height:1.2;color:var(--digital)}
+.chip .bn{font-family:var(--mono);font-size:13px;letter-spacing:.04em;line-height:1.2}
+.stream-box{display:grid;gap:4px}
+.stream-lbl{font-size:13px;font-weight:700}
+.stream{font-family:var(--mono);font-size:13px;color:var(--muted);word-break:break-all;max-height:5.8em;overflow:auto;background:var(--plot);border-radius:8px;padding:6px 10px}
+
+/* 設定 */
+.controls{grid-area:side;display:grid;gap:14px}
+.ctl{display:grid;gap:6px}
+.sep{border-top:1px solid var(--grid);padding-top:14px}
+.ctl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.ctl-name{font-weight:700}
+.big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--digital);line-height:1.1;white-space:nowrap}
+.big small{font-size:15px;margin-left:3px}
+input[type=range]{width:100%;height:28px;margin:0;accent-color:var(--digital);cursor:pointer}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding-inline:2px}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.row > span,.row > label{font-size:14px;font-weight:700}
+.seg{display:inline-flex;border:1.5px solid var(--rule);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:6px 12px;cursor:pointer;font-size:14px}
+.seg button + button{border-left:1.5px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--digital)}
+.check:has(input:disabled){opacity:.45;cursor:default}
+.presets{display:grid;gap:6px}
+.presets > span{font-size:13px;color:var(--muted)}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pbtn{display:grid;gap:1px;border:1.5px solid var(--rule);background:var(--plot);border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;line-height:1.25}
+.pbtn:hover{border-color:var(--ink)}
+.pbtn b{font-size:14px}
+.pbtn small{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* 下段 */
+.bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:14px;align-items:start}
+.audio,.data{display:grid;gap:12px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1.5px solid var(--ink);background:var(--panel);border-radius:10px;padding:9px 16px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--digital);border-color:var(--digital);color:#fff}
+.btn.rec{border-color:var(--rec);color:var(--rec)}
+.btn:disabled{opacity:.5;cursor:default}
+.rec-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.status{font-size:14px;min-height:1.55em}
+.caution{font-size:13px;color:var(--muted)}
+.formula{font-size:15px;background:var(--plot);border-radius:8px;padding:8px 12px;line-height:1.9}
+.data-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 20px;align-items:start}
+.data-in{display:grid;gap:10px}
+.sec-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-weight:400}
+input[type=number]{width:6.5em;font:inherit;padding:4px 8px;border:1.5px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.mini{border:1.5px solid var(--rule);background:var(--panel);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:13px}
+.mini:hover{border-color:var(--ink)}
+.expr{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.ladder{display:grid;gap:1px;font-variant-numeric:tabular-nums}
+.rung{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.rung .v{font-size:18px;font-weight:700}
+.rung .u{font-size:14px;font-weight:700;color:var(--muted)}
+.op{font-size:12px;color:var(--muted)}
+.l1{padding-left:1.4em}
+.l2{padding-left:2.8em}
+.l3{padding-left:4.2em}
+.rung.final .v{font-size:26px;color:var(--digital)}
+.cmp{display:grid;gap:6px}
+.bar{height:12px;background:var(--grid);border-radius:6px;overflow:hidden}
+.bar span{display:block;height:100%;width:0;background:var(--digital);transition:width .25s ease}
+
+@media (max-width:900px){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"graph" "side" "code"}
+  .bottom{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .data-grid{grid-template-columns:minmax(0,1fr)}
+  .big{font-size:22px}
+  .arrow{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .bar span{transition:none}
+}
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="name">
+      <h1>音のデジタル化シミュレーター</h1>
+      <p class="sub">グラフの横はば＝<b>0.001秒</b>（1000分の1秒）ぶんの音</p>
+    </div>
+    <nav class="steps" aria-label="表示する段階">
+      <button type="button" class="step" data-stage="1"><span class="num">1</span><span class="lbl">元の音<small>アナログの波</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="2"><span class="num">2</span><span class="lbl"><ruby>標本化<rt>ひょうほんか</rt></ruby><small>時間をとびとびにする</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="3"><span class="num">3</span><span class="lbl"><ruby>量子化<rt>りょうしか</rt></ruby><small>高さを段にする</small></span></button>
+      <span class="arrow" aria-hidden="true">→</span>
+      <button type="button" class="step" data-stage="4"><span class="num">4</span><span class="lbl"><ruby>符号化<rt>ふごうか</rt></ruby><small>2進数で書く</small></span></button>
+    </nav>
+    <label class="furi"><input type="checkbox" id="furigana" checked>ふりがな</label>
+  </header>
+
+  <div class="main">
+    <section class="card stagecard" aria-label="グラフ">
+      <div class="legend">
+        <span class="key"><i class="sw-line"></i>元の音（アナログ）</span>
+        <span class="key"><i class="sw-dot"></i>はかった点</span>
+        <span class="key"><i class="sw-ring"></i>丸める前の高さ</span>
+        <span class="key"><i class="sw-dig"></i>点をつないだ音（デジタル）</span>
+      </div>
+      <div class="canvas-box" id="cvbox"><canvas id="cv" role="img" aria-label="音の波のグラフ"></canvas></div>
+    </section>
+
+    <section class="card controls" aria-label="設定">
+      <div class="ctl">
+        <div class="ctl-head">
+          <span class="ctl-name"><ruby>標本化<rt>ひょうほんか</rt></ruby><ruby>周波数<rt>しゅうはすう</rt></ruby></span>
+          <output class="big" id="fsOut" for="fs"></output>
+        </div>
+        <input type="range" id="fs" min="0" max="5" step="1" value="2" aria-label="標本化周波数">
+        <div class="ticks" aria-hidden="true"><span>2,000</span><span>4,000</span><span>8,000</span><span>16,000</span><span>22,050</span><span>44,100</span></div>
+        <p class="note" id="fsNote"></p>
+      </div>
+      <div class="ctl sep">
+        <div class="ctl-head">
+          <span class="ctl-name"><ruby>量子化<rt>りょうしか</rt></ruby>ビット<ruby>数<rt>すう</rt></ruby></span>
+          <output class="big" id="bitsOut" for="bits"></output>
+        </div>
+        <input type="range" id="bits" min="0" max="5" step="1" value="2" aria-label="量子化ビット数">
+        <div class="ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>8</span><span>16</span></div>
+        <p class="note" id="bitsNote"></p>
+      </div>
+      <div class="row sep"><span>つなぎ方</span><div class="seg"><button type="button" data-mode="line">折れ線</button><button type="button" data-mode="hold">階段</button></div></div>
+      <div class="row"><span>波の形</span><div class="seg"><button type="button" data-wave="simple">なめらか</button><button type="button" data-wave="complex">ふくざつ</button></div></div>
+      <label class="check"><input type="checkbox" id="showErr"><span>ズレ（<ruby>誤差<rt>ごさ</rt></ruby>）を色で見る</span></label>
+      <div class="presets sep">
+        <span>すぐに切りかえ</span>
+        <div class="preset-grid">
+          <button type="button" class="pbtn" data-preset="8000,3"><b>8回・8段</b><small>8,000Hz・3ビット</small></button>
+          <button type="button" class="pbtn" data-preset="16000,3"><b>16回・8段</b><small>16,000Hz・3ビット</small></button>
+          <button type="button" class="pbtn" data-preset="8000,8,1"><b>電話の音</b><small>8,000Hz・8ビット・1ch</small></button>
+          <button type="button" class="pbtn" data-preset="44100,16,2"><b>CDの音</b><small>44,100Hz・16ビット・2ch</small></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card code" aria-label="送るデータ">
+      <div class="code-head"><h2 id="codeTitle">送るデータ</h2><p class="code-sum" id="codeSum"></p></div>
+      <p class="hint" id="codeHint"></p>
+      <div class="chips" id="chips" hidden></div>
+      <div class="stream-box" id="streamBox" hidden>
+        <p class="stream-lbl">実際に送るのは、この 0 と 1 の列だけ（PCM方式）</p>
+        <p class="stream" id="stream"></p>
+      </div>
+    </section>
+  </div>
+
+  <div class="bottom">
+    <section class="card audio" aria-labelledby="audioTitle">
+      <h2 id="audioTitle">音を聞いてみる</h2>
+      <div class="row"><span>聞く音</span><div class="seg"><button type="button" data-src="melody">メロディ（きらきら星）</button><button type="button" data-src="voice">自分の声</button></div></div>
+      <div class="rec-row" id="recRow" hidden>
+        <button type="button" class="btn rec" id="recBtn">● 4秒 録音する</button>
+        <p class="status" id="recStatus" aria-live="polite"></p>
+      </div>
+      <div class="btns">
+        <button type="button" class="btn" id="playOrig">▶ 元の音</button>
+        <button type="button" class="btn primary" id="playDigi">▶ この設定の音</button>
+        <button type="button" class="btn" id="stopBtn">■ 止める</button>
+      </div>
+      <p class="note" id="audioSet"></p>
+      <p class="status" id="audioStatus" aria-live="polite"></p>
+      <p class="caution">音量に注意：ビット数を少なくすると「ザー」「ビー」という大きな雑音になります。はじめは音量を小さめに。</p>
+    </section>
+
+    <section class="card data" aria-labelledby="dataTitle">
+      <h2 id="dataTitle">データ量を計算する</h2>
+      <p class="formula">データ量（bit）＝ <b><ruby>標本化<rt>ひょうほんか</rt></ruby><ruby>周波数<rt>しゅうはすう</rt></ruby></b> × <b><ruby>量子化<rt>りょうしか</rt></ruby>ビット<ruby>数<rt>すう</rt></ruby></b> × <b>チャンネル<ruby>数<rt>すう</rt></ruby></b> × <b><ruby>時間<rt>じかん</rt></ruby>（<ruby>秒<rt>びょう</rt></ruby>）</b></p>
+      <div class="data-grid">
+        <div class="data-in">
+          <div class="row"><span>チャンネル数</span><div class="seg"><button type="button" data-ch="1">1（モノラル）</button><button type="button" data-ch="2">2（ステレオ）</button></div></div>
+          <div class="row"><label for="sec">時間</label><div class="sec-row"><input type="number" id="sec" min="1" max="36000" step="1" value="60"><span>秒</span><button type="button" class="mini" data-sec="60">1分</button><button type="button" class="mini" data-sec="180">3分</button></div></div>
+          <p class="expr" id="expr"></p>
+        </div>
+        <div class="ladder" aria-label="単位の変換">
+          <div class="rung"><span class="v" id="vBit"></span><span class="u">bit</span></div>
+          <div class="op l1">↓ ÷8</div>
+          <div class="rung l1"><span class="v" id="vB"></span><span class="u">B</span></div>
+          <div class="op l2">↓ ÷1024</div>
+          <div class="rung l2"><span class="v" id="vKB"></span><span class="u">KB</span></div>
+          <div class="op l3">↓ ÷1024</div>
+          <div class="rung l3 final"><span class="v" id="vMB"></span><span class="u">MB</span></div>
+        </div>
+      </div>
+      <div class="cmp"><div class="bar"><span id="barFill"></span></div><p class="note" id="cmpText"></p></div>
+    </section>
+  </div>
+</main>
+
+<script>
+(() => {
+  const FS = [2000, 4000, 8000, 16000, 22050, 44100];
+  const BITS = [1, 2, 3, 4, 8, 16];
+  const S = { fsI: 2, bI: 2, stage: 4, mode: 'line', wave: 'complex', err: false, ch: 2, sec: 60, src: 'melody' };
+  const FONT = '"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif';
+  const $ = id => document.getElementById(id);
+  const nf = new Intl.NumberFormat('ja-JP');
+
+  function fmtN(x) {
+    if (Number.isInteger(x)) return nf.format(x);
+    const d = x >= 10 ? 1 : x >= 0.01 ? 2 : 4;
+    return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: d }).format(x);
+  }
+  function fmtPct(p) {
+    const d = p >= 10 ? 0 : p >= 1 ? 1 : 2;
+    return new Intl.NumberFormat('ja-JP', { maximumFractionDigits: d }).format(p);
+  }
+
+  const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const C = {
+    analog: cssv('--analog'), analogSoft: cssv('--analog-soft'), digital: cssv('--digital'),
+    plot: cssv('--plot'), grid: cssv('--grid'), rule: cssv('--rule'), muted: cssv('--muted'),
+    panel: cssv('--panel'), err: cssv('--err')
+  };
+
+  // ---- 波とサンプル ----
+  function waveAt(u) {
+    if (S.wave === 'simple') return 0.85 * Math.sin(2 * Math.PI * 1.5 * u + 0.25);
+    return 0.55 * Math.sin(2 * Math.PI * 1.5 * u + 0.3)
+         + 0.28 * Math.sin(2 * Math.PI * 3 * u + 1.2)
+         + 0.12 * Math.sin(2 * Math.PI * 4 * u + 2.1);
+  }
+  function sampleSet() {
+    const fs = FS[S.fsI], L = 2 ** BITS[S.bI], step = 1000 / fs, out = [];
+    for (let k = 0; ; k++) {
+      const u = (k + 0.5) * step;
+      if (u >= 1) break;
+      const y = waveAt(u);
+      let q = Math.round((y + 1) / 2 * (L - 1));
+      q = Math.max(0, Math.min(L - 1, q));
+      out.push({ u, y, q, yq: q / (L - 1) * 2 - 1 });
+    }
+    return out;
+  }
+
+  // ---- グラフ ----
+  const cv = $('cv'), box = $('cvbox');
+  function draw() {
+    const w = Math.max(280, Math.floor(box.clientWidth));
+    const h = Math.round(Math.max(250, Math.min(520, w * 0.46, window.innerHeight * 0.58)));
+    const dpr = Math.min(3, window.devicePixelRatio || 1);
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    cv.style.height = h + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    const fs = FS[S.fsI], bits = BITS[S.bI], L = 2 ** bits, pts = sampleSet(), n = pts.length, step = 1000 / fs;
+    const m = { l: 44, r: 14, t: 14, b: 32 };
+    const pw = w - m.l - m.r, ph = h - m.t - m.b;
+    const X = u => m.l + u * pw, Y = v => m.t + (1 - (v + 1) / 2) * ph;
+
+    g.fillStyle = C.plot; g.fillRect(m.l, m.t, pw, ph);
+    g.strokeStyle = C.rule; g.lineWidth = 1; g.strokeRect(m.l + 0.5, m.t + 0.5, pw - 1, ph - 1);
+
+    g.fillStyle = C.muted; g.font = `12px ${FONT}`; g.textBaseline = 'top';
+    g.textAlign = 'left'; g.fillText('0秒', m.l, m.t + ph + 8);
+    g.textAlign = 'center'; g.fillText('0.0005秒', m.l + pw / 2, m.t + ph + 8);
+    g.textAlign = 'right'; g.fillText('0.001秒', m.l + pw, m.t + ph + 8);
+
+    if (S.stage < 3) {
+      g.strokeStyle = C.grid; g.beginPath();
+      g.moveTo(m.l, Math.round(Y(0)) + 0.5); g.lineTo(m.l + pw, Math.round(Y(0)) + 0.5); g.stroke();
+    } else if (L <= 32) {
+      g.lineWidth = 1;
+      for (let q = 0; q < L; q++) {
+        const yy = Math.round(Y(q / (L - 1) * 2 - 1)) + 0.5;
+        g.strokeStyle = C.grid; g.beginPath(); g.moveTo(m.l, yy); g.lineTo(m.l + pw, yy); g.stroke();
+        if (L <= 16) {
+          g.fillStyle = C.muted; g.textAlign = 'right'; g.textBaseline = 'middle'; g.font = `bold 12px ${FONT}`;
+          g.fillText(String(q), m.l - 8, yy);
+        }
+      }
+      if (L > 16) {
+        g.save(); g.translate(14, m.t + ph / 2); g.rotate(-Math.PI / 2);
+        g.fillStyle = C.muted; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `12px ${FONT}`;
+        g.fillText(`${L}段`, 0, 0); g.restore();
+      }
+    } else {
+      g.fillStyle = C.muted; g.textAlign = 'right'; g.textBaseline = 'top'; g.font = `12px ${FONT}`;
+      g.fillText(`${nf.format(L)}段は細かすぎるので、段の線は省略`, m.l + pw - 8, m.t + 8);
+    }
+
+    const recon = u => {
+      if (!n) return null;
+      if (S.mode === 'hold') {
+        const k = Math.max(0, Math.min(n - 1, Math.floor(u / step)));
+        return pts[k].yq;
+      }
+      if (n === 1) return pts[0].yq;
+      if (u < pts[0].u || u > pts[n - 1].u) return null;
+      const k = Math.max(0, Math.min(n - 2, Math.floor(u / step - 0.5)));
+      const a = pts[k], b = pts[k + 1];
+      return a.yq + (b.yq - a.yq) * ((u - a.u) / (b.u - a.u));
+    };
+
+    if (S.stage >= 3 && S.err) {
+      g.fillStyle = C.err;
+      for (let px = 0; px < pw; px++) {
+        const u = (px + 0.5) / pw, r = recon(u);
+        if (r === null) continue;
+        const y1 = Y(waveAt(u)), y2 = Y(r);
+        g.fillRect(m.l + px, Math.min(y1, y2), 1, Math.abs(y1 - y2));
+      }
+    }
+
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    g.strokeStyle = S.stage >= 3 ? C.analogSoft : C.analog;
+    g.lineWidth = S.stage >= 3 ? 2.5 : 3.5;
+    g.beginPath();
+    for (let px = 0; px <= pw; px++) {
+      const yy = Y(waveAt(px / pw));
+      if (px === 0) g.moveTo(m.l, yy); else g.lineTo(m.l + px, yy);
+    }
+    g.stroke();
+
+    const gap = pw / Math.max(1, n);
+    if (S.stage >= 2 && gap >= 6) {
+      g.strokeStyle = C.analogSoft; g.lineWidth = 1; g.setLineDash(gap >= 14 ? [4, 4] : []);
+      for (const p of pts) {
+        const xx = Math.round(X(p.u)) + 0.5;
+        g.beginPath(); g.moveTo(xx, m.t); g.lineTo(xx, m.t + ph); g.stroke();
+      }
+      g.setLineDash([]);
+    }
+
+    if (S.stage >= 3) {
+      g.strokeStyle = C.digital; g.lineWidth = 3; g.beginPath();
+      if (S.mode === 'hold') {
+        pts.forEach((p, k) => {
+          const x0 = X(k * step), x1 = X(Math.min(1, (k + 1) * step)), yy = Y(p.yq);
+          if (k === 0) g.moveTo(x0, yy); else g.lineTo(x0, yy);
+          g.lineTo(x1, yy);
+        });
+      } else {
+        pts.forEach((p, k) => { const xx = X(p.u), yy = Y(p.yq); if (k === 0) g.moveTo(xx, yy); else g.lineTo(xx, yy); });
+      }
+      g.stroke();
+    }
+
+    if (S.stage >= 2) {
+      const r = gap >= 40 ? 6.5 : gap >= 22 ? 5 : 3.5;
+      for (const p of pts) {
+        const xx = X(p.u);
+        if (S.stage === 2) {
+          g.beginPath(); g.arc(xx, Y(p.y), r, 0, Math.PI * 2);
+          g.fillStyle = C.digital; g.fill(); g.strokeStyle = C.panel; g.lineWidth = 2; g.stroke();
+          continue;
+        }
+        const ya = Y(p.y), yq = Y(p.yq);
+        if (Math.abs(ya - yq) >= 1) {
+          if (Math.abs(ya - yq) > r * 2) {
+            g.strokeStyle = C.muted; g.lineWidth = 1.5; g.setLineDash([3, 3]);
+            g.beginPath(); g.moveTo(xx, ya); g.lineTo(xx, yq); g.stroke(); g.setLineDash([]);
+          }
+          g.beginPath(); g.arc(xx, ya, Math.max(2.5, r - 1), 0, Math.PI * 2);
+          g.fillStyle = C.panel; g.fill(); g.strokeStyle = C.muted; g.lineWidth = 1.8; g.stroke();
+        }
+        g.beginPath(); g.arc(xx, yq, r, 0, Math.PI * 2);
+        g.fillStyle = C.digital; g.fill(); g.strokeStyle = C.panel; g.lineWidth = 2; g.stroke();
+      }
+
+      if (S.stage >= 3) {
+        g.font = `bold 13px ${FONT}`;
+        const maxW = g.measureText(String(L - 1)).width + 8;
+        if (gap >= Math.max(30, maxW + 6)) {
+          g.textAlign = 'center';
+          for (const p of pts) {
+            const xx = X(p.u), ya = Y(p.y), yq = Y(p.yq), t = String(p.q);
+            const tw = g.measureText(t).width + 8;
+            // 丸める前の白丸と反対側に札を置く（端にぶつかるときは逆へ）
+            const above = Math.abs(ya - yq) < 1 ? p.yq < 0.6 : ya > yq;
+            let top = above ? yq - r - 21 : yq + r + 5;
+            if (top < m.t + 2) top = yq + r + 5;
+            else if (top + 17 > m.t + ph - 2) top = yq - r - 21;
+            g.fillStyle = C.panel; g.fillRect(xx - tw / 2, top, tw, 17);
+            g.fillStyle = C.digital; g.textBaseline = 'middle'; g.fillText(t, xx, top + 9);
+          }
+        }
+      }
+    }
+  }
+
+  // ---- 送るデータ ----
+  function renderCode(pts, bits) {
+    const chips = $('chips'), hint = $('codeHint'), sum = $('codeSum'), title = $('codeTitle'), sb = $('streamBox');
+    if (S.stage < 3) {
+      title.textContent = '送るデータ';
+      hint.hidden = false; chips.hidden = true; sb.hidden = true; sum.textContent = '';
+      hint.textContent = '「3 量子化」で段の番号、「4 符号化」で送る 0 と 1 が出ます。';
+      return;
+    }
+    hint.hidden = true; chips.hidden = false;
+    const frag = document.createDocumentFragment();
+    pts.forEach((p, k) => {
+      const d = document.createElement('div');
+      d.className = 'chip';
+      d.innerHTML = `<span class="i">${k + 1}</span><span class="d">${p.q}</span>`
+        + (S.stage >= 4 ? `<span class="bn">${p.q.toString(2).padStart(bits, '0')}</span>` : '');
+      frag.appendChild(d);
+    });
+    chips.replaceChildren(frag);
+    if (S.stage >= 4) {
+      title.innerHTML = '<ruby>符号化<rt>ふごうか</rt></ruby>：送るデータ（2進数）';
+      sb.hidden = false;
+      $('stream').textContent = pts.map(p => p.q.toString(2).padStart(bits, '0')).join(' ');
+      sum.innerHTML = `この画面ぶん：<b>${pts.length}個</b> × <b>${bits}ビット</b> ＝ <b>${nf.format(pts.length * bits)}ビット</b>`;
+    } else {
+      title.innerHTML = '<ruby>量子化<rt>りょうしか</rt></ruby>：段の番号';
+      sb.hidden = true;
+      sum.innerHTML = `この画面ぶん：<b>${pts.length}個</b>の数`;
+    }
+  }
+
+  // ---- データ量 ----
+  function renderData(fs, bits) {
+    const bit = fs * bits * S.ch * S.sec, B = bit / 8, KB = B / 1024, MB = KB / 1024;
+    $('expr').textContent = `${nf.format(fs)} × ${bits} × ${S.ch} × ${nf.format(S.sec)} ＝`;
+    $('vBit').textContent = fmtN(bit);
+    $('vB').textContent = fmtN(B);
+    $('vKB').textContent = fmtN(KB);
+    $('vMB').textContent = fmtN(MB);
+    const ratio = (fs * bits) / (44100 * 16);
+    $('barFill').style.width = Math.max(0.6, Math.min(100, ratio * 100)) + '%';
+    $('cmpText').innerHTML = ratio >= 0.9995
+      ? '同じチャンネル数・時間の<b>CDの音（44,100Hz・16ビット）と同じ</b>データ量'
+      : `同じチャンネル数・時間のCDの音（44,100Hz・16ビット）の <b>${fmtPct(ratio * 100)}%</b>`;
+  }
+
+  // ---- 全体の更新 ----
+  function pressed(sel, key, val) {
+    document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[key] === String(val))));
+  }
+  function update() {
+    const fs = FS[S.fsI], bits = BITS[S.bI], L = 2 ** bits, pts = sampleSet();
+    $('fs').value = S.fsI; $('bits').value = S.bI;
+    $('fs').setAttribute('aria-valuetext', `${fs}ヘルツ`);
+    $('bits').setAttribute('aria-valuetext', `${bits}ビット`);
+    $('fsOut').innerHTML = `${nf.format(fs)}<small>Hz</small>`;
+    $('bitsOut').innerHTML = `${bits}<small>ビット</small>`;
+    $('fsNote').innerHTML = `この画面（0.001秒）で <b>${pts.length}回</b> はかる → 1秒なら <b>${nf.format(fs)}回</b>`;
+    $('bitsNote').innerHTML = `高さを <b>${nf.format(L)}段</b>（0〜${nf.format(L - 1)}）に分ける`;
+    document.querySelectorAll('.step').forEach(b => {
+      const s = Number(b.dataset.stage);
+      b.setAttribute('aria-pressed', String(s === S.stage));
+      b.classList.toggle('done', s < S.stage);
+    });
+    pressed('[data-mode]', 'mode', S.mode);
+    pressed('[data-wave]', 'wave', S.wave);
+    pressed('[data-ch]', 'ch', S.ch);
+    pressed('[data-src]', 'src', S.src);
+    $('showErr').checked = S.err;
+    $('showErr').disabled = S.stage < 3;
+    $('sec').value = S.sec;
+    $('recRow').hidden = S.src !== 'voice';
+    $('audioSet').innerHTML = `この設定＝<b>${nf.format(fs)}Hz・${bits}ビット</b>（${S.mode === 'hold' ? '階段' : '折れ線'}でつなぐ）`;
+    cv.setAttribute('aria-label', `${nf.format(fs)}Hz・${bits}ビット：元の波を${pts.length}回はかり、${nf.format(L)}段に丸めたグラフ`);
+    renderCode(pts, bits);
+    renderData(fs, bits);
+    draw();
+  }
+
+  $('fs').addEventListener('input', e => { S.fsI = Number(e.target.value); update(); });
+  $('bits').addEventListener('input', e => { S.bI = Number(e.target.value); update(); });
+  document.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => { S.stage = Number(b.dataset.stage); update(); }));
+  document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { S.mode = b.dataset.mode; update(); }));
+  document.querySelectorAll('[data-wave]').forEach(b => b.addEventListener('click', () => { S.wave = b.dataset.wave; update(); }));
+  document.querySelectorAll('[data-ch]').forEach(b => b.addEventListener('click', () => { S.ch = Number(b.dataset.ch); update(); }));
+  document.querySelectorAll('[data-sec]').forEach(b => b.addEventListener('click', () => { S.sec = Number(b.dataset.sec); update(); }));
+  document.querySelectorAll('[data-src]').forEach(b => b.addEventListener('click', () => { S.src = b.dataset.src; update(); }));
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+    const [fs, bits, ch] = b.dataset.preset.split(',').map(Number);
+    S.fsI = FS.indexOf(fs); S.bI = BITS.indexOf(bits);
+    if (ch) S.ch = ch;
+    update();
+  }));
+  $('showErr').addEventListener('change', e => { S.err = e.target.checked; update(); });
+  $('sec').addEventListener('change', e => {
+    const v = Math.round(Number(e.target.value));
+    if (Number.isFinite(v) && v >= 1 && v <= 36000) S.sec = v;
+    update();
+  });
+  $('furigana').addEventListener('change', e => { document.body.classList.toggle('no-rt', !e.target.checked); });
+
+  let lastW = 0;
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => { const w = box.clientWidth; if (w !== lastW) { lastW = w; draw(); } }).observe(box);
+  }
+  window.addEventListener('resize', draw);
+
+  // ---- 音 ----
+  let actx = null, playing = null, melody = null, voice = null;
+  const setAudio = msg => { $('audioStatus').textContent = msg; };
+  const setRec = msg => { $('recStatus').textContent = msg; };
+
+  function getCtx() {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function normalize(a, peak) {
+    let mx = 0;
+    for (let i = 0; i < a.length; i++) { const v = Math.abs(a[i]); if (v > mx) mx = v; }
+    if (mx > 0) { const k = peak / mx; for (let i = 0; i < a.length; i++) a[i] *= k; }
+    return mx;
+  }
+  function makeMelody(sr) {
+    const notes = [[72,1],[72,1],[79,1],[79,1],[81,1],[81,1],[79,2],[77,1],[77,1],[76,1],[76,1],[74,1],[74,1],[72,2]];
+    const beat = 0.3, lead = 0.05;
+    let total = lead + 0.5;
+    for (const [, d] of notes) total += d * beat;
+    const out = new Float32Array(Math.ceil(total * sr));
+    let t0 = lead;
+    for (const [midi, d] of notes) {
+      const f = 440 * Math.pow(2, (midi - 69) / 12), dur = d * beat * 0.92, ring = 0.35;
+      const start = Math.floor(t0 * sr), len = Math.floor((dur + ring) * sr);
+      const H = [];
+      for (let h = 1; h <= 10; h++) if (f * h < sr * 0.45) H.push([2 * Math.PI * f * h / sr, 1 / Math.pow(h, 1.15)]);
+      for (let i = 0; i < len && start + i < out.length; i++) {
+        const t = i / sr;
+        let env = Math.min(1, t / 0.006) * Math.exp(-t * 2.6);
+        if (t > dur) env *= Math.exp(-(t - dur) * 14);
+        let s = 0;
+        for (const [wv, a] of H) s += a * Math.sin(wv * i);
+        out[start + i] += env * s;
+      }
+      t0 += d * beat;
+    }
+    normalize(out, 0.8);
+    return out;
+  }
+  function lowpass(x, sr, fc) {
+    const w0 = 2 * Math.PI * fc / sr, alpha = Math.sin(w0) / (2 * Math.SQRT1_2), cw = Math.cos(w0), a0 = 1 + alpha;
+    const b0 = (1 - cw) / 2 / a0, b1 = (1 - cw) / a0, b2 = b0, a1 = -2 * cw / a0, a2 = (1 - alpha) / a0;
+    const y = new Float32Array(x.length);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const xi = x[i], yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = xi; y2 = y1; y1 = yi; y[i] = yi;
+    }
+    return y;
+  }
+  function digitize(x, sr, fs, bits, mode) {
+    let f = x;
+    if (fs < sr) { const fc = fs * 0.45; f = lowpass(lowpass(x, sr, fc), sr, fc); }
+    const n = Math.max(2, Math.floor(x.length * fs / sr)), L = Math.pow(2, bits), s = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const p = k * sr / fs, i = Math.floor(p), fr = p - i;
+      const a = i < f.length ? f[i] : 0, b = i + 1 < f.length ? f[i + 1] : 0;
+      const v = Math.max(-1, Math.min(1, a + (b - a) * fr));
+      const q = Math.round((v + 1) / 2 * (L - 1));
+      s[k] = q / (L - 1) * 2 - 1;
+    }
+    const y = new Float32Array(x.length);
+    let sum = 0;
+    for (let i = 0; i < y.length; i++) {
+      const p = i * fs / sr, k = Math.min(n - 1, Math.floor(p)), fr = p - Math.floor(p);
+      const a = s[k], b = s[Math.min(k + 1, n - 1)];
+      y[i] = mode === 'hold' ? a : a + (b - a) * fr;
+      sum += y[i];
+    }
+    const mean = sum / y.length, fade = Math.min(Math.floor(sr * 0.015), Math.floor(y.length / 2));
+    for (let i = 0; i < y.length; i++) {
+      let v = y[i] - mean;
+      if (i < fade) v *= i / fade;
+      else if (i > y.length - 1 - fade) v *= (y.length - 1 - i) / fade;
+      y[i] = v;
+    }
+    let mx = 0;
+    for (let i = 0; i < y.length; i++) { const v = Math.abs(y[i]); if (v > mx) mx = v; }
+    if (mx > 0.8) normalize(y, 0.8);
+    return y;
+  }
+  function getSource(ac) {
+    if (S.src === 'voice') {
+      if (!voice) { setAudio('先に「● 4秒 録音する」で声を録音してください。'); return null; }
+      return voice;
+    }
+    if (!melody || melody.sr !== ac.sampleRate) melody = { sr: ac.sampleRate, data: makeMelody(ac.sampleRate) };
+    return melody;
+  }
+  function stopAudio() {
+    if (playing) { const p = playing; playing = null; try { p.stop(); } catch (e) {} }
+  }
+  function playData(ac, data, msg) {
+    stopAudio();
+    const buf = ac.createBuffer(1, data.length, ac.sampleRate);
+    buf.getChannelData(0).set(data);
+    const node = ac.createBufferSource(), gain = ac.createGain();
+    node.buffer = buf; gain.gain.value = 0.55;
+    node.connect(gain); gain.connect(ac.destination);
+    node.onended = () => { if (playing === node) { playing = null; setAudio('再生が終わりました。'); } };
+    node.start(); playing = node; setAudio(msg);
+  }
+
+  $('playOrig').addEventListener('click', () => {
+    const ac = getCtx();
+    if (!ac) { setAudio('このブラウザでは音を鳴らせません。'); return; }
+    const src = getSource(ac); if (!src) return;
+    playData(ac, src.data, '再生中：元の音');
+  });
+  $('playDigi').addEventListener('click', () => {
+    const ac = getCtx();
+    if (!ac) { setAudio('このブラウザでは音を鳴らせません。'); return; }
+    const src = getSource(ac); if (!src) return;
+    const fs = FS[S.fsI], bits = BITS[S.bI];
+    playData(ac, digitize(src.data, ac.sampleRate, fs, bits, S.mode),
+      `再生中：${nf.format(fs)}Hz・${bits}ビット（${S.mode === 'hold' ? '階段' : '折れ線'}）`);
+  });
+  $('stopBtn').addEventListener('click', () => { stopAudio(); setAudio('止めました。'); });
+
+  $('recBtn').addEventListener('click', async () => {
+    const ac = getCtx();
+    if (!ac) { setRec('このブラウザでは録音できません。'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      setRec('このブラウザ（またはこの開き方）では録音できません。'); return;
+    }
+    stopAudio();
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { setRec('マイクが使えませんでした。ブラウザでマイクを「許可」したか、マイクがつながっているかを確認してください。'); return; }
+    const rec = new MediaRecorder(stream), chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      try {
+        const ab = await new Blob(chunks, { type: rec.mimeType || 'audio/webm' }).arrayBuffer();
+        const buf = await ac.decodeAudioData(ab);
+        const len = buf.length, mono = new Float32Array(len);
+        for (let c = 0; c < buf.numberOfChannels; c++) {
+          const d = buf.getChannelData(c);
+          for (let i = 0; i < len; i++) mono[i] += d[i] / buf.numberOfChannels;
+        }
+        const mx = normalize(mono, 0.8);
+        if (mx < 0.003) { setRec('音がほとんど録れていません。マイクの音量を確認して、もう一度どうぞ。'); return; }
+        voice = { sr: ac.sampleRate, data: mono };
+        setRec('録音できました。▶ で聞きくらべてみよう。');
+      } catch (e) {
+        setRec('録音した音を読みこめませんでした。もう一度ためしてください。');
+      } finally {
+        $('recBtn').disabled = false;
+      }
+    };
+    $('recBtn').disabled = true;
+    rec.start();
+    let left = 4;
+    setRec(`録音中… あと${left}秒`);
+    const timer = setInterval(() => {
+      left--;
+      if (left > 0) setRec(`録音中… あと${left}秒`);
+      else { clearInterval(timer); if (rec.state !== 'inactive') rec.stop(); }
+    }, 1000);
+  });
+
+  update();
+})();
+</script>
+
+</body>
+</html>
