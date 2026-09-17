@@ -2,12 +2,12 @@
 
 授業で使うブラウザ教材の置き場です。インストール不要で、PC・iPad のブラウザからそのまま開けます。
 
-トップページ（QR コードつき）：https://km-note.github.io/class-tools/
+トップページ（QR コードつき）：https://hs-note.github.io/class-tools/
 
 | 教材 | 開く |
 |---|---|
-| 音のデジタル化シミュレーター（標本化・量子化・符号化／データ量） | https://km-note.github.io/class-tools/sound/ |
-| 画像のデジタル化シミュレーター（画素・解像度・階調／画像と動画のデータ量） | https://km-note.github.io/class-tools/image/ |
+| 音のデジタル化シミュレーター（標本化・量子化・符号化／データ量） | https://hs-note.github.io/class-tools/sound/ |
+| 画像のデジタル化シミュレーター（画素・解像度・階調／画像と動画のデータ量） | https://hs-note.github.io/class-tools/image/ |
 
 ## 使わせてもらっているもの
 
