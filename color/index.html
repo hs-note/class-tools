@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>色の表現シミュレーター</title>
+<style>
+:root{
+  color-scheme: light;
+  --ground:#E9EEF3;
+  --panel:#FFFFFF;
+  --plot:#F7F9FB;
+  --chip:#FFF7F1;
+  --ink:#14202B;
+  --muted:#566472;
+  --rule:#CFD8E1;
+  --grid:#DCE3EA;
+  --analog-soft:#A9BEEB;
+  --digital:#E0560E;
+  --digital-soft:#F6CDB3;
+  --red:#C62828;
+  --green:#2E7D32;
+  --blue:#1565C0;
+  --ok:#2E7D32;
+  --ok-soft:#E4F1E4;
+  --night:#0B0F14;
+  --focus:#1B4FB8;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Consolas","Menlo",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--ground)}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:14px 36px;-webkit-text-size-adjust:100%}
+.wrap{max-width:1480px;margin-inline:auto;display:grid;gap:14px}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(20px,2.1vw,28px);letter-spacing:.02em}
+h2{font-size:18px}
+p{margin:0}
+rt{font-size:.55em;font-weight:400;letter-spacing:0}
+.no-rt rt{display:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* 上の帯 */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
+.name{display:grid;gap:2px}
+.sub{color:var(--muted);font-size:14px}
+.sub b{color:var(--ink)}
+.steps{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.step{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1.5px solid var(--rule);border-radius:10px;background:var(--panel);cursor:pointer;text-align:left}
+.step:hover{border-color:var(--ink)}
+.step .num{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--grid);font-weight:700;font-variant-numeric:tabular-nums}
+.step .lbl{display:grid;line-height:1.25;font-weight:700}
+.step small{font-size:12px;font-weight:400;color:var(--muted)}
+.step[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.step[aria-pressed="true"] .num{background:var(--digital);color:#fff}
+.step[aria-pressed="true"] small{color:#D5DDE5}
+.furi{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.furi input{width:18px;height:18px;accent-color:var(--ink)}
+
+/* 本体 */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 330px;grid-template-areas:"stage side" "below side";gap:14px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 16px}
+.stage{grid-area:stage}
+.controls{grid-area:side;display:grid;gap:14px}
+.below{grid-area:below}
+.view{display:grid;gap:10px}
+.cap{font-size:15px;color:var(--muted)}
+.cap b{color:var(--ink)}
+.canvas-box{width:100%}
+canvas{display:block;margin-inline:auto;max-width:100%}
+.tap{font-size:13px;color:var(--muted);text-align:center}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink);font-variant-numeric:tabular-nums}
+.caution{font-size:13px;color:var(--muted)}
+.nw{white-space:nowrap}
+.r{color:var(--red)}
+.g{color:var(--green)}
+.b{color:var(--blue)}
+
+/* 設定 */
+.ctl{display:grid;gap:6px}
+.sep{border-top:1px solid var(--grid);padding-top:14px}
+.ctl-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.ctl-name{font-weight:700}
+.ctl-name small{font-size:13px;margin-left:2px}
+.big{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--digital);line-height:1.1;white-space:nowrap}
+.big small{font-size:15px;margin-inline:2px}
+.big.r{color:var(--red)}
+.big.g{color:var(--green)}
+.big.b{color:var(--blue)}
+input[type=range]{flex:1;width:100%;min-width:0;height:28px;margin:0;accent-color:var(--digital);cursor:pointer}
+input.sr.r{accent-color:var(--red)}
+input.sr.g{accent-color:var(--green)}
+input.sr.b{accent-color:var(--blue)}
+.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding-inline:2px}
+.chs{display:grid;gap:2px}
+.chs + .chs{margin-top:6px}
+.srow{display:flex;align-items:center;gap:6px}
+.srow + .ticks{padding-inline:44px}
+.nudge{flex:none;width:38px;height:38px;border:1.5px solid var(--rule);background:var(--panel);border-radius:9px;font-size:20px;font-weight:700;line-height:1;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.nudge:hover{border-color:var(--ink)}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.row > span,.row > label{font-size:14px;font-weight:700}
+.seg{display:inline-flex;flex-wrap:wrap;border:1.5px solid var(--rule);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:6px 12px;cursor:pointer;font-size:14px}
+.seg button + button{border-left:1.5px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--digital)}
+.presets{display:grid;gap:6px}
+.presets > span{font-size:13px;color:var(--muted)}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pbtn{display:grid;gap:1px;border:1.5px solid var(--rule);background:var(--plot);border-radius:9px;padding:7px 9px;cursor:pointer;text-align:left;line-height:1.25}
+.pbtn:hover{border-color:var(--ink)}
+.pbtn b{font-size:14px}
+.pbtn small{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pbtn[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.pbtn[aria-pressed="true"] small{color:#D5DDE5}
+.btn{display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--ink);background:var(--panel);border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--digital);border-color:var(--digital);color:#fff}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+
+/* 1 光の三原色 */
+#cvL{border-radius:10px;touch-action:none;cursor:grab}
+#cvL.dragging{cursor:grabbing}
+.mixlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 10px}
+.mix{display:flex;align-items:center;gap:10px;font-size:14px;background:var(--plot);border-radius:8px;padding:6px 10px}
+.mix .sw{flex:none;width:38px;height:38px;border-radius:6px;border:1px solid rgba(20,32,43,.25)}
+.mix .mt{display:grid;flex:1;min-width:0;line-height:1.35}
+.mix .l2{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 8px}
+.mix .nm{font-weight:700;font-size:15px}
+.mix small{color:var(--muted);font-size:12px}
+.mix code{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.03em}
+.mix.center{box-shadow:inset 0 0 0 2px var(--ink)}
+.zoomhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px}
+.zoomrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+#cvZ{border-radius:10px;border:1px solid var(--rule)}
+
+/* 2 カラーコード */
+.bigsw{display:grid;place-items:center;gap:6px;min-height:clamp(130px,24vh,230px);border-radius:12px;border:1px solid rgba(20,32,43,.2);padding:12px}
+.hexbig{font-family:var(--mono);font-size:clamp(30px,5vw,58px);font-weight:700;letter-spacing:.05em;background:rgba(255,255,255,.92);border-radius:12px;padding:2px 18px;line-height:1.3}
+.cname{font-size:14px;font-weight:700;background:rgba(255,255,255,.92);border-radius:8px;padding:2px 10px}
+.chhead,.chrow{display:grid;grid-template-columns:4.4em 6em minmax(0,1fr) 9.4em;grid-template-areas:"nm dec bits hx";gap:6px 14px;align-items:center}
+.chhead{font-size:12.5px;color:var(--muted);font-weight:700}
+.chrow{padding-block:8px;border-top:1px solid var(--grid)}
+.chname{grid-area:nm;font-weight:700;font-size:20px;line-height:1.15}
+.chname small{display:block;font-size:12px}
+.dec{grid-area:dec;display:grid;gap:1px}
+.dec input{width:100%;font:inherit;font-size:22px;font-weight:700;padding:4px 8px;text-align:right;border:1.5px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink);font-variant-numeric:tabular-nums}
+.dec small,.hx small,.bsum{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bitwrap{grid-area:bits;display:grid;gap:2px}
+.bits{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.pv{font-size:11px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.bit{height:40px;border:1.5px solid var(--rule);background:var(--panel);border-radius:7px;font-family:var(--mono);font-size:19px;font-weight:700;cursor:pointer;padding:0;touch-action:manipulation}
+.bit:hover{border-color:var(--ink)}
+.bit.r[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+.bit.g[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
+.bit.b[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.hx{grid-area:hx;display:grid;justify-items:start;gap:1px}
+.hxv{font-family:var(--mono);font-size:30px;font-weight:700;letter-spacing:.05em;line-height:1.1}
+.hx .pn{font-size:10.5px}
+.codein{display:flex;gap:6px}
+.codein input{flex:1;min-width:0;font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.04em;padding:6px 10px;border:1.5px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink)}
+.err{color:var(--red);font-size:13px;min-height:1.2em}
+.cbtn{display:flex;align-items:center;gap:8px;border:1.5px solid var(--rule);background:var(--plot);border-radius:9px;padding:6px 8px;cursor:pointer;text-align:left;line-height:1.2}
+.cbtn:hover{border-color:var(--ink)}
+.cbtn .sw{flex:none;width:26px;height:26px;border-radius:6px;border:1px solid rgba(20,32,43,.25)}
+.cbtn b{display:block;font-family:var(--mono);font-size:13.5px}
+.cbtn small{font-size:11.5px;color:var(--muted)}
+.quiz{display:grid;gap:12px}
+.qtop{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px}
+.qsliders{display:none}
+.qpair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qpair figure{margin:0;display:grid;gap:4px}
+.qsw{height:clamp(90px,16vh,150px);border-radius:12px;border:1px solid rgba(20,32,43,.2)}
+figcaption{font-size:14px;font-weight:700;text-align:center}
+.qres{display:grid;gap:6px;background:var(--plot);border-radius:10px;padding:10px 12px}
+.qres .sc{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.score{font-size:34px;font-weight:700;color:var(--digital);font-variant-numeric:tabular-nums;line-height:1.1}
+.hints{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:15px;font-weight:700}
+.qans{font-size:15px}
+.qans code,.qcode{font-family:var(--mono);font-weight:700;letter-spacing:.04em}
+.qcode{font-size:clamp(30px,5vw,48px);text-align:center;background:var(--plot);border-radius:12px;padding:6px}
+.choices{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.choice{display:grid;gap:4px;border:0;background:none;padding:0;cursor:pointer}
+.choice .sw{height:clamp(70px,12vh,110px);border-radius:10px;border:1px solid rgba(20,32,43,.2);outline:4px solid transparent;outline-offset:3px}
+.choice:hover .sw{outline-color:var(--rule)}
+.choice.right .sw{outline-color:var(--ok)}
+.choice.wrong .sw{outline-color:var(--red)}
+.choice .lb{font-family:var(--mono);font-size:14px;font-weight:700;text-align:center;min-height:1.5em}
+.choice:disabled{cursor:default}
+.okt{color:var(--ok);font-weight:700}
+.ngt{color:var(--red);font-weight:700}
+
+/* 3 階調 */
+.gpair{display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.gtab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px}
+.gtab th{font-size:12.5px;color:var(--muted);text-align:left;padding:4px 8px;border-bottom:1.5px solid var(--rule);font-weight:700}
+.gtab td{padding:5px 8px;border-bottom:1px solid var(--grid)}
+.gtab tr.cur td{background:var(--chip);font-weight:700}
+.nb{border:1.5px solid var(--rule);background:var(--panel);border-radius:7px;padding:3px 10px;cursor:pointer;font-weight:700;white-space:nowrap}
+.nb:hover{border-color:var(--ink)}
+.gtab tr.cur .nb{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tag{display:inline-block;font-size:12.5px;font-weight:700;color:var(--digital);margin-left:6px}
+.tblwrap{overflow-x:auto}
+.formula{font-size:15px;background:var(--plot);border-radius:8px;padding:8px 12px;line-height:1.8}
+
+/* ミッション */
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.mcount{font-size:14px;color:var(--muted)}
+.mcount b{color:var(--ok);font-size:17px}
+.mlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.mis{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;align-items:start;padding:7px 9px;border-radius:9px;background:var(--plot);font-size:14px;line-height:1.45}
+.mis .mk{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:2px solid var(--rule);font-size:13px;font-weight:700;color:var(--muted);background:var(--panel)}
+.mis small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.mis code{font-family:var(--mono);font-weight:700}
+.mis.done{background:var(--ok-soft)}
+.mis.done .mk{background:var(--ok);border-color:var(--ok);color:#fff}
+.mis .okmsg{color:#1E5E22}
+.mis.pop{animation:pop .7s ease}
+@keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.04)}100%{transform:scale(1)}}
+
+@media (max-width:900px){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-areas:"stage" "side" "below"}
+  .qsliders{display:grid;gap:4px;background:var(--plot);border-radius:10px;padding:8px 10px}
+}
+@media (max-width:640px){
+  .chhead{display:none}
+  .chrow{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"nm dec hx" "bits bits bits"}
+  .choices{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .big{font-size:22px}
+  .gtab{font-size:14px}
+  .gtab th,.gtab td{padding-inline:5px}
+  .gtab .calc{display:none}
+  .tag{display:block;margin-left:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .mis.pop{animation:none}
+}
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="name">
+      <h1>色の表現シミュレーター</h1>
+      <p class="sub">コンピュータは色を<b>赤・緑・青の光の強さ（数）</b>で表す</p>
+    </div>
+    <nav class="steps" aria-label="ページ">
+      <button type="button" class="step" data-tab="1"><span class="num">1</span><span class="lbl"><span><ruby>光<rt>ひかり</rt></ruby>の<ruby>三<rt>さん</rt></ruby><ruby>原<rt>げん</rt></ruby><ruby>色<rt>しょく</rt></ruby></span><small>光を重ねる</small></span></button>
+      <button type="button" class="step" data-tab="2"><span class="num">2</span><span class="lbl">カラーコード<small>色を数で書く</small></span></button>
+      <button type="button" class="step" data-tab="3"><span class="num">3</span><span class="lbl"><span><ruby>階<rt>かい</rt></ruby><ruby>調<rt>ちょう</rt></ruby></span><small>何段に分けるか</small></span></button>
+    </nav>
+    <label class="furi"><input type="checkbox" id="furigana" checked>ふりがな</label>
+  </header>
+
+  <div class="main">
+    <!-- 左上：見る所 -->
+    <section class="card stage" aria-label="表示">
+      <div class="view" data-views="1">
+        <p class="cap"><b><ruby>光<rt>ひかり</rt></ruby>の<ruby>三<rt>さん</rt></ruby><ruby>原<rt>げん</rt></ruby><ruby>色<rt>しょく</rt></ruby></b>（赤・緑・青）：光を重ねると、重なったところは<b>明るく</b>なる ＝ <b><ruby>加<rt>か</rt></ruby><ruby>法<rt>ほう</rt></ruby><ruby>混<rt>こん</rt></ruby><ruby>色<rt>しょく</rt></ruby></b>（混ぜるほど明るい）</p>
+        <div class="canvas-box" id="lightBox"><canvas id="cvL" role="img" aria-label="赤・緑・青の光の丸を重ねた図"></canvas></div>
+        <p class="tap">光の丸は、指やマウスでドラッグして動かせます</p>
+        <div class="mixlist" id="mixList"></div>
+      </div>
+
+      <div class="view" data-views="2">
+        <div class="bigsw" id="bigSw"><span class="hexbig" id="hexBig"></span><span class="cname" id="cName"></span></div>
+        <div>
+          <div class="chhead" aria-hidden="true"><span></span><span>10<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby></span><span>2<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby>（8ビット）…押すと 0 と 1 が入れかわる</span><span>16<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby></span></div>
+          <div id="chRows"></div>
+        </div>
+        <p class="note">カラーコード＝ <b>#</b> のあとに、<b class="r">赤</b>・<b class="g">緑</b>・<b class="b">青</b>の強さを <b>16<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby>2けたずつ</b>ならべたもの（00〜FF ＝ 0〜255）。1色＝8ビット → 3色で <b>24ビット</b>。</p>
+      </div>
+
+      <div class="view" data-views="3">
+        <p class="cap" id="gCap"></p>
+        <div class="canvas-box gpair" id="gBox"><canvas id="cvG" role="img" aria-label="階調を変えた画像"></canvas></div>
+        <div class="canvas-box" id="stripBox"><canvas id="cvS" role="img" aria-label="明るさの段"></canvas></div>
+      </div>
+    </section>
+
+    <!-- 右：設定とミッション -->
+    <section class="card controls" aria-label="設定">
+      <div class="ctl" data-views="1 2">
+        <div id="sliders"></div>
+      </div>
+
+      <div class="ctl sep" data-views="1">
+        <div class="row"><span>光の置き方</span><div class="seg"><button type="button" data-layout="overlap">重ねる</button><button type="button" data-layout="apart">はなす</button></div></div>
+        <div class="presets">
+          <span>すぐに切りかえ</span>
+          <div class="preset-grid">
+            <button type="button" class="pbtn" data-light="255,0,0"><b>赤だけ</b><small>255・0・0</small></button>
+            <button type="button" class="pbtn" data-light="0,255,0"><b>緑だけ</b><small>0・255・0</small></button>
+            <button type="button" class="pbtn" data-light="0,0,255"><b>青だけ</b><small>0・0・255</small></button>
+            <button type="button" class="pbtn" data-light="255,255,255"><b>ぜんぶ 最大</b><small>255・255・255</small></button>
+            <button type="button" class="pbtn" data-light="128,128,128"><b>ぜんぶ 半分</b><small>128・128・128</small></button>
+            <button type="button" class="pbtn" data-light="0,0,0"><b>ぜんぶ 0</b><small>0・0・0</small></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ctl sep" data-views="2">
+        <label class="ctl-name" for="codeIn">カラーコードを入れる</label>
+        <div class="codein"><input type="text" id="codeIn" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#FF8000"><button type="button" class="btn" id="codeGo">この色に</button></div>
+        <p class="err" id="codeErr" aria-live="polite"></p>
+        <div class="presets">
+          <span>Webページで名前がついている色</span>
+          <div class="preset-grid" id="codePresets"></div>
+        </div>
+      </div>
+
+      <div class="ctl" data-views="3">
+        <div class="row"><span>使う画像</span><div class="seg"><button type="button" data-gimg="sky">夕やけの空</button><button type="button" data-gimg="ball">ボール</button><button type="button" data-gimg="chart">色の帯</button></div></div>
+        <div class="row"><span>色の表し方</span><div class="seg"><button type="button" data-gmode="gray">白黒</button><button type="button" data-gmode="rgb">カラー</button></div></div>
+      </div>
+      <div class="ctl sep" data-views="3">
+        <div class="ctl-head">
+          <span class="ctl-name" id="gBitsName"></span>
+          <output class="big" id="gBitsOut" for="gBits"></output>
+        </div>
+        <input type="range" id="gBits" min="1" max="8" step="1" value="3" aria-label="ビット数">
+        <div class="ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span></div>
+        <p class="note" id="gBitsNote"></p>
+        <label class="check"><input type="checkbox" id="gCompare"><span>8ビット（なめらか）と並べる</span></label>
+      </div>
+
+      <div class="ctl sep">
+        <div class="mhead"><h2>ミッション</h2><p class="mcount" id="mCount"></p></div>
+        <ol class="mlist" id="mList"></ol>
+      </div>
+    </section>
+
+    <!-- 左下 -->
+    <section class="card below" aria-label="くわしく">
+      <div class="view" data-views="1">
+        <div class="zoomhead"><h2>画面を近くで見ると…</h2><p class="note" id="zoomNote"></p></div>
+        <div class="zoomrow">
+          <span>はなれて見る</span>
+          <input type="range" id="zoom" min="0" max="5" step="1" value="3" aria-label="見る近さ">
+          <span>虫めがねで見る</span>
+        </div>
+        <div class="canvas-box" id="zoomBox"><canvas id="cvZ" role="img" aria-label="画面を拡大したようす"></canvas></div>
+        <p class="caution">※ 光の粒の形や並び方は、画面の種類によってちがいます。</p>
+      </div>
+
+      <div class="view quiz" data-views="2">
+        <div class="qtop">
+          <h2>色当てクイズ</h2>
+          <div class="seg"><button type="button" data-qmode="make">色を見て、つくる</button><button type="button" data-qmode="pick">コードを見て、えらぶ</button></div>
+          <div class="seg"><button type="button" data-qlevel="easy">かんたん</button><button type="button" data-qlevel="hard">むずかしい</button></div>
+        </div>
+        <div id="qMake" class="quiz">
+          <p class="note">おだいの色になるように、赤・緑・青の強さを合わせよう。<span id="qLevelNote"></span></p>
+          <div class="qpair">
+            <figure><div class="qsw" id="qT"></div><figcaption>おだいの色</figcaption></figure>
+            <figure><div class="qsw" id="qC"></div><figcaption>いまの色</figcaption></figure>
+          </div>
+          <div class="qsliders" id="qSliders"></div>
+          <div class="btns">
+            <button type="button" class="btn primary" id="qCheck">こたえ合わせ</button>
+            <button type="button" class="btn" id="qShow">こたえを見る</button>
+            <button type="button" class="btn" id="qNext">つぎのもんだい</button>
+          </div>
+          <div class="qres" id="qRes" aria-live="polite" hidden></div>
+        </div>
+        <div id="qPick" class="quiz">
+          <p class="note">このカラーコードは、どの色？</p>
+          <p class="qcode" id="pCode"></p>
+          <div class="choices" id="pChoices"></div>
+          <div class="qres" id="pRes" aria-live="polite" hidden></div>
+          <div class="btns"><button type="button" class="btn" id="pNext">つぎのもんだい</button></div>
+          <p class="note" id="pScore"></p>
+        </div>
+      </div>
+
+      <div class="view" data-views="3">
+        <h2>ビット数と色の数</h2>
+        <p class="formula" id="gFormula"></p>
+        <div class="tblwrap"><table class="gtab" id="gTable"></table></div>
+      </div>
+    </section>
+  </div>
+  <p class="vh" id="live" aria-live="polite"></p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const nf = new Intl.NumberFormat('ja-JP');
+  const FONT = '"BIZ UDPGothic","Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif';
+  const MONO = '"BIZ UDGothic","Consolas","Menlo",monospace';
+  const CH = [
+    { name: '赤', en: 'R', cls: 'r' },
+    { name: '緑', en: 'G', cls: 'g' },
+    { name: '青', en: 'B', cls: 'b' }
+  ];
+  const LAYOUTS = {
+    overlap: [[-0.12, -0.07], [0.12, -0.07], [0, 0.14]],
+    apart: [[-0.26, -0.19], [0.26, -0.19], [0, 0.24]]
+  };
+  const RAD = 0.22;
+  const ZOOM = [3, 6, 12, 24, 48, 96];
+  const ZALPHA = [1, 0.7, 0.35, 0.1, 0, 0];
+  const GS = 480;
+  const EASY = [0, 128, 255];
+  const HARD_PICK = [0, 0x33, 0x66, 0x99, 0xCC, 0xFF];
+  const PRESET_CODES = [
+    ['#FF6347', 'tomato'], ['#87CEEB', 'skyblue'], ['#008080', 'teal'],
+    ['#800080', 'purple'], ['#000080', 'navy'], ['#8B4513', 'saddlebrown']
+  ];
+  const S = {
+    tab: 1, rgb: [255, 255, 255], layout: 'overlap', pos: LAYOUTS.overlap.map(p => p.slice()), zoom: 1,
+    qMode: 'make', qLevel: 'easy', qTarget: null, qResult: null, qReveal: false, qBest: 0,
+    pick: null, pickChosen: null, pickOk: 0, pickN: 0,
+    gImg: 'sky', gMode: 'rgb', gBits: 3, gCompare: false,
+    done: new Set()
+  };
+
+  const hex2 = v => v.toString(16).toUpperCase().padStart(2, '0');
+  const hexOf = c => '#' + c.map(hex2).join('');
+  const hexHTML = c => '#' + c.map((v, i) => `<span class="${CH[i].cls}">${hex2(v)}</span>`).join('');
+  const css = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+  const lum = c => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  const rand = n => Math.floor(Math.random() * n);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const same = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  // 近い色の名前（めやす）
+  function colorName([r, g, b]) {
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+    if (mx < 28) return '黒';
+    if (c < 28) {
+      if (mn >= 230) return '白';
+      return mx < 90 ? '暗い灰色' : mx > 185 ? '明るい灰色' : '灰色';
+    }
+    let h = mx === r ? (g - b) / c : mx === g ? (b - r) / c + 2 : (r - g) / c + 4;
+    h = (h * 60 + 360) % 360;
+    const dark = mx < 140, pale = mn >= 130;
+    if (h < 15 || h >= 345) return pale ? 'ピンク' : dark ? '暗い赤' : '赤';
+    if (h < 40) return pale ? 'うすいオレンジ' : dark ? '茶色' : 'オレンジ';
+    if (h < 70) return pale ? 'うすい黄' : dark ? '暗い黄' : '黄';
+    if (h < 100) return pale ? 'うすい黄緑' : dark ? '暗い黄緑' : '黄緑';
+    if (h < 150) return pale ? 'うすい緑' : dark ? '暗い緑' : '緑';
+    if (h < 170) return pale ? 'うすい青緑' : dark ? '暗い青緑' : '青緑';
+    if (h < 200) return pale ? 'うすい水色' : dark ? '青緑' : '水色（シアン）';
+    if (h < 250) return pale ? 'うすい青' : dark ? '紺' : '青';
+    if (h < 285) return pale ? 'うすい紫' : dark ? '暗い紫' : '紫';
+    return pale ? 'ピンク' : dark ? '紫' : '赤紫（マゼンタ）';
+  }
+
+  function fit(cv, w, h) {
+    const dpr = Math.min(3, window.devicePixelRatio || 1), W = Math.round(w * dpr), H = Math.round(h * dpr);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    g.clearRect(0, 0, w, h);
+    return g;
+  }
+
+  // ---- ミッション ----
+  const MIS = {
+    1: [
+      { id: 'L-y', t: 'まんなか（3つが重なったところ）を<b>黄</b>にしよう', hint: 'どの光を消せばいい？', ok: () => colorName(S.rgb) === '黄', msg: '赤＋緑＝黄。青の光を0にすると黄になる。' },
+      { id: 'L-c', t: 'まんなかを<b>水色（シアン）</b>にしよう', ok: () => colorName(S.rgb) === '水色（シアン）', msg: '緑＋青＝水色（シアン）。' },
+      { id: 'L-o', t: 'まんなかを<b>オレンジ</b>にしよう', hint: 'まず黄をつくって、どれかを少し弱めると…？', ok: () => colorName(S.rgb) === 'オレンジ', msg: '赤は強く・緑は半分くらい・青は0。' },
+      { id: 'L-p', t: 'まんなかを<b>ピンク</b>にしよう', hint: '白から、どれかを少し弱めると…？', ok: () => colorName(S.rgb) === 'ピンク', msg: '赤は強いまま、緑と青を少し弱める。' },
+      { id: 'L-k', t: 'まんなかを<b>黒</b>にしよう', ok: () => S.rgb.every(v => v <= 10), msg: '光がぜんぶ0＝光っていない＝黒。' }
+    ],
+    2: [
+      { id: 'C-red', t: '<code>#FF0000</code> をつくろう。何色になる？', ok: () => same(S.rgb, [255, 0, 0]), msg: 'FF＝255（いちばん強い）。赤の光だけ全開＝赤。' },
+      { id: 'C-yel', t: '<code>#FFFF00</code> をつくろう', ok: () => same(S.rgb, [255, 255, 0]), msg: '赤FF＋緑FF＝黄。「1 光の三原色」と同じ！' },
+      { id: 'C-gray', t: '<code>#808080</code> をつくろう', hint: '16進数の 80 は、10進数でいくつ？（8×16＋0）', ok: () => same(S.rgb, [128, 128, 128]), msg: '80＝8×16＝128。3色が同じ強さだと灰色になる。' },
+      { id: 'C-q1', t: '色当てクイズ「色を見て、つくる」で <b>80点以上</b>', ok: () => S.qBest >= 80 },
+      { id: 'C-q2', t: '色当てクイズ「コードを見て、えらぶ」で <b>3問せいかい</b>', ok: () => S.pickOk >= 3 }
+    ],
+    3: [
+      { id: 'G-8', t: '色が <b>8色</b> しかない画像にしよう', hint: 'カラーで、ビット数をいちばん少なく', ok: () => S.gMode === 'rgb' && S.gBits === 1, msg: '赤・緑・青が「0か1」だけ → 2×2×2＝8色。「1 光の三原色」の図と同じ8色！' },
+      { id: 'G-bin', t: '<b><ruby>二<rt>に</rt></ruby><ruby>値<rt>ち</rt></ruby><ruby>画<rt>が</rt></ruby><ruby>像<rt>ぞう</rt></ruby></b>（白と黒だけ）にしよう', ok: () => S.gMode === 'gray' && S.gBits === 1, msg: '1画素＝1ビット（0か1）。' },
+      { id: 'G-gs', t: '<b>グレースケール</b>（256段の白黒）にしよう', ok: () => S.gMode === 'gray' && S.gBits === 8, msg: '明るさを8ビット＝256段。1画素＝8ビット。' },
+      { id: 'G-fc', t: '<b>24ビットフルカラー</b>にしよう。色の数はいくつ？', ok: () => S.gMode === 'rgb' && S.gBits === 8, msg: '256×256×256＝16,777,216色（約1678万色）。' },
+      { id: 'G-band', t: '「夕やけの空」の<b>しま模様</b>が目立たなくなるのは、何ビットから？', hint: '人によってちがうかも。まわりとくらべよう', manual: true }
+    ]
+  };
+  let popIds = new Set();
+  function checkMissions() {
+    const fresh = [];
+    for (const t of [1, 2, 3]) for (const m of MIS[t]) {
+      if (!m.manual && !S.done.has(m.id) && m.ok()) { S.done.add(m.id); fresh.push(m); }
+    }
+    if (fresh.length) {
+      popIds = new Set(fresh.map(m => m.id));
+      const tmp = document.createElement('div'); tmp.innerHTML = fresh[0].t;
+      tmp.querySelectorAll('rt').forEach(e => e.remove());
+      $('live').textContent = 'ミッションクリア：' + tmp.textContent;
+    } else popIds = new Set();
+  }
+  function renderMissions() {
+    const list = MIS[S.tab], auto = list.filter(m => !m.manual);
+    $('mCount').innerHTML = `できた <b>${auto.filter(m => S.done.has(m.id)).length}</b> / ${auto.length}`;
+    $('mList').innerHTML = list.map((m, i) => {
+      const done = S.done.has(m.id);
+      return `<li class="mis${done ? ' done' : ''}${popIds.has(m.id) ? ' pop' : ''}"><span class="mk" aria-hidden="true">${done ? '✓' : m.manual ? '?' : i + 1}</span><div>${m.t}`
+        + (done ? '<span class="vh">（できた）</span>' : '')
+        + (m.hint && !done ? `<small>ヒント：${m.hint}</small>` : '')
+        + (done && m.msg ? `<small class="okmsg">${m.msg}</small>` : '')
+        + '</div></li>';
+    }).join('');
+  }
+
+  // ---- 赤・緑・青のスライダー ----
+  function sliderHTML(compact) {
+    return CH.map((c, i) => `
+      <div class="chs">
+        <div class="ctl-head"><span class="ctl-name ${c.cls}">${c.name}の光<small>${c.en}</small></span><output class="big ${c.cls}" data-out="${i}"></output></div>
+        <div class="srow">
+          <button type="button" class="nudge" data-ch="${i}" data-d="-1" aria-label="${c.name}を1へらす">−</button>
+          <input type="range" class="sr ${c.cls}" data-ch="${i}" min="0" max="255" step="1" aria-label="${c.name}の光の強さ">
+          <button type="button" class="nudge" data-ch="${i}" data-d="1" aria-label="${c.name}を1ふやす">＋</button>
+        </div>
+        ${compact ? '' : '<div class="ticks" aria-hidden="true"><span>0</span><span>128</span><span>255</span></div>'}
+      </div>`).join('');
+  }
+  $('sliders').innerHTML = sliderHTML(false);
+  $('qSliders').innerHTML = sliderHTML(true);
+  function syncSliders() {
+    document.querySelectorAll('input.sr').forEach(el => {
+      const i = Number(el.dataset.ch);
+      if (Number(el.value) !== S.rgb[i]) el.value = S.rgb[i];
+      el.setAttribute('aria-valuetext', `${CH[i].name} ${S.rgb[i]}`);
+    });
+    document.querySelectorAll('[data-out]').forEach(el => { el.textContent = S.rgb[Number(el.dataset.out)]; });
+  }
+  function setCh(i, v) {
+    if (S.rgb[i] === v) return;
+    S.rgb = S.rgb.slice(); S.rgb[i] = v; S.qResult = null;
+  }
+  function setRGB(c) { S.rgb = c.slice(); S.qResult = null; }
+
+  // ---- 1 光の三原色 ----
+  const cvL = $('cvL');
+  let geo = null;
+  function regionPoint(P, r, m, w, h) {
+    let x0 = 0, x1 = w, y0 = 0, y1 = h;
+    for (let i = 0; i < 3; i++) if ((m >> i) & 1) {
+      x0 = Math.max(x0, P[i][0] - r); x1 = Math.min(x1, P[i][0] + r);
+      y0 = Math.max(y0, P[i][1] - r); y1 = Math.min(y1, P[i][1] + r);
+    }
+    if (x0 >= x1 || y0 >= y1) return null;
+    const st = r / 14;
+    let best = null, bm = 0;
+    for (let x = x0; x <= x1; x += st) {
+      for (let y = y0; y <= y1; y += st) {
+        let mg = Math.min(x, w - x, y, h - y);
+        for (let i = 0; i < 3; i++) {
+          const d = Math.hypot(x - P[i][0], y - P[i][1]);
+          mg = Math.min(mg, (m >> i) & 1 ? r - d : d - r);
+        }
+        if (mg > bm) { bm = mg; best = [x, y]; }
+      }
+    }
+    return bm > r * 0.12 ? best : null;
+  }
+  function drawLights() {
+    const box = $('lightBox'), w = Math.max(260, Math.floor(box.clientWidth));
+    const h = Math.round(clamp(w * 0.7, 240, Math.max(260, window.innerHeight * 0.58)));
+    const g = fit(cvL, w, h);
+    g.fillStyle = '#0B0F14'; g.fillRect(0, 0, w, h);
+    const u = Math.min(w, h), cx = w / 2, cy = h / 2, r = RAD * u;
+    const P = S.pos.map(([x, y]) => [cx + x * u, cy + y * u]);
+    geo = { u, cx, cy, r, P, w, h };
+
+    g.globalCompositeOperation = 'lighter';
+    P.forEach(([x, y], i) => {
+      const c = [0, 0, 0]; c[i] = S.rgb[i];
+      const gl = g.createRadialGradient(x, y, r, x, y, r * 1.25);
+      gl.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},0.3)`);
+      gl.addColorStop(1, `rgba(${c[0]},${c[1]},${c[2]},0)`);
+      g.fillStyle = gl; g.beginPath(); g.arc(x, y, r * 1.25, 0, Math.PI * 2); g.arc(x, y, r, 0, Math.PI * 2, true); g.fill();
+      g.fillStyle = css(c); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    });
+    g.globalCompositeOperation = 'source-over';
+
+    g.setLineDash([6, 6]); g.lineWidth = 1.5; g.strokeStyle = 'rgba(255,255,255,0.3)';
+    P.forEach(([x, y]) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke(); });
+    g.setLineDash([]);
+
+    const fs = clamp(u * 0.042, 12, 22);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let m = 1; m < 8; m++) {
+      const pt = regionPoint(P, r, m, w, h);
+      if (!pt) continue;
+      const on = [0, 1, 2].filter(i => (m >> i) & 1);
+      const c = [0, 1, 2].map(i => ((m >> i) & 1) ? S.rgb[i] : 0);
+      g.fillStyle = lum(c) > 140 ? '#14202B' : '#FFFFFF';
+      if (on.length === 1) {
+        const i = on[0];
+        g.font = `bold ${fs}px ${FONT}`;
+        g.fillText(`${CH[i].name}の光`, pt[0], pt[1] - fs * 0.62);
+        g.font = `bold ${(fs * 0.85).toFixed(1)}px ${MONO}`;
+        g.fillText(`${CH[i].en} ${S.rgb[i]}`, pt[0], pt[1] + fs * 0.62);
+      } else {
+        g.font = `bold ${(fs * (on.length === 3 ? 0.72 : 0.85)).toFixed(1)}px ${FONT}`;
+        g.fillText(on.map(i => CH[i].name).join('＋'), pt[0], pt[1]);
+      }
+    }
+    cvL.setAttribute('aria-label', `赤${S.rgb[0]}・緑${S.rgb[1]}・青${S.rgb[2]}の光の丸。3つ重なったところは${colorName(S.rgb)}`);
+  }
+  function renderMix() {
+    const combos = [[0, 1], [1, 2], [0, 2], [0, 1, 2]];
+    $('mixList').innerHTML = combos.map(ix => {
+      const c = [0, 1, 2].map(i => ix.includes(i) ? S.rgb[i] : 0), all = ix.length === 3;
+      return `<div class="mix${all ? ' center' : ''}"><span class="sw" style="background:${css(c)}"></span><span class="mt">`
+        + `<span><b>${ix.map(i => `<span class="${CH[i].cls}">${CH[i].name}</span>`).join('＋')}</b>${all ? ' <small>まんなか</small>' : ''}</span>`
+        + `<span class="l2"><span>→ <span class="nm">${colorName(c)}</span></span><code>${hexHTML(c)}</code></span></span></div>`;
+    }).join('');
+  }
+
+  let drag = null;
+  const localPt = e => { const b = cvL.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  cvL.addEventListener('pointerdown', e => {
+    if (!geo) return;
+    const [x, y] = localPt(e);
+    let hit = -1, best = Infinity;
+    geo.P.forEach(([px, py], i) => { const d = Math.hypot(x - px, y - py); if (d <= geo.r && d <= best) { best = d; hit = i; } });
+    if (hit < 0) return;
+    drag = { i: hit, dx: x - geo.P[hit][0], dy: y - geo.P[hit][1], id: e.pointerId };
+    cvL.setPointerCapture(e.pointerId);
+    cvL.classList.add('dragging');
+    e.preventDefault();
+  });
+  cvL.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const [x, y] = localPt(e), { u, cx, cy, w, h, r } = geo;
+    const nx = clamp(x - drag.dx, r * 0.4, w - r * 0.4), ny = clamp(y - drag.dy, r * 0.4, h - r * 0.4);
+    S.pos[drag.i] = [(nx - cx) / u, (ny - cy) / u];
+    S.layout = 'custom';
+    drawLights();
+    pressed('[data-layout]', 'layout', S.layout);
+  });
+  const endDrag = e => { if (drag && e.pointerId === drag.id) { drag = null; cvL.classList.remove('dragging'); } };
+  cvL.addEventListener('pointerup', endDrag);
+  cvL.addEventListener('pointercancel', endDrag);
+
+  const cvZ = $('cvZ');
+  function drawZoom() {
+    const box = $('zoomBox'), w = Math.max(240, Math.floor(box.clientWidth));
+    const h = clamp(Math.round(w * 0.28), 150, 230);
+    const g = fit(cvZ, w, h);
+    const p = ZOOM[S.zoom], a = ZALPHA[S.zoom], [R, G, B] = S.rgb;
+    g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+    if (a < 1) {
+      const gap = Math.max(0.6, p * 0.07), sw = (p - gap * 4) / 3, sh = p - gap * 2;
+      const cols = [[R, 0, 0], [0, G, 0], [0, 0, B]];
+      for (let k = 0; k < 3; k++) {
+        g.fillStyle = css(cols[k]);
+        for (let y = 0; y < h; y += p) for (let x = 0; x < w; x += p) g.fillRect(x + gap + k * (sw + gap), y + gap, sw, sh);
+      }
+      if (p >= 48) {
+        g.font = `bold ${Math.round(p * 0.17)}px ${MONO}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (let y = 0; y < h; y += p) for (let x = 0; x < w; x += p) {
+          for (let k = 0; k < 3; k++) {
+            const tx = x + gap + k * (sw + gap) + sw / 2;
+            g.fillStyle = lum(cols[k]) > 110 ? '#14202B' : '#FFFFFF';
+            g.fillText(CH[k].en, tx, y + p * 0.36);
+            g.fillText(String(S.rgb[k]), tx, y + p * 0.62);
+          }
+        }
+      }
+    }
+    if (a > 0) { g.globalAlpha = a; g.fillStyle = css(S.rgb); g.fillRect(0, 0, w, h); g.globalAlpha = 1; }
+    $('zoomNote').innerHTML = S.zoom <= 1
+      ? 'はなれて見ると、<b>1つの色</b>に見える（スライダーを右へ動かして近づいてみよう）'
+      : S.zoom <= 3
+        ? '近づくと、<b>赤・緑・青</b>の小さな光の粒が見えてくる'
+        : '1つの<ruby>画<rt>が</rt></ruby><ruby>素<rt>そ</rt></ruby>は、<b>赤・緑・青の光の粒</b>でできている。色は3つの光の<b>強さ（0〜255）</b>で決まる';
+    cvZ.setAttribute('aria-label', S.zoom <= 1 ? `画面を遠くから見たようす。${colorName(S.rgb)}に見える` : `画面を拡大したようす。赤${R}・緑${G}・青${B}の光の粒が並んでいる`);
+  }
+
+  // ---- 2 カラーコード ----
+  $('chRows').innerHTML = CH.map((c, i) => {
+    const ks = [7, 6, 5, 4, 3, 2, 1, 0];
+    return `<div class="chrow">
+      <div class="chname ${c.cls}">${c.name}<small>${c.en}</small></div>
+      <label class="dec"><input type="number" min="0" max="255" step="1" inputmode="numeric" data-dec="${i}" aria-label="${c.name}の強さ（10進数）"><small class="vh">10進数</small></label>
+      <div class="bitwrap">
+        <div class="bits" aria-hidden="true">${ks.map(k => `<span class="pv">${1 << k}</span>`).join('')}</div>
+        <div class="bits">${ks.map(k => `<button type="button" class="bit ${c.cls}" data-ch="${i}" data-k="${k}" aria-label="${c.name}の ${1 << k} のけた"></button>`).join('')}</div>
+        <p class="bsum" id="bsum${i}"></p>
+      </div>
+      <div class="hx"><span class="hxv ${c.cls}" id="hx${i}"></span><small id="hxc${i}"></small></div>
+    </div>`;
+  }).join('');
+  $('codePresets').innerHTML = PRESET_CODES.map(([hx, nm]) =>
+    `<button type="button" class="cbtn" data-code="${hx}"><span class="sw" style="background:${hx}"></span><span><b>${hx}</b><small>${nm}</small></span></button>`).join('');
+
+  function renderCode() {
+    const c = S.rgb;
+    $('bigSw').style.background = css(c);
+    $('hexBig').innerHTML = hexHTML(c);
+    $('cName').textContent = '近い色：' + colorName(c);
+    const dig = n => n < 10 ? String(n) : `${n.toString(16).toUpperCase()}<span class="pn">(${n})</span>`;
+    c.forEach((v, i) => {
+      const inp = document.querySelector(`[data-dec="${i}"]`);
+      if (document.activeElement !== inp) inp.value = v;
+      document.querySelectorAll(`.bit[data-ch="${i}"]`).forEach(b => {
+        const on = (v >> Number(b.dataset.k)) & 1;
+        b.textContent = on; b.setAttribute('aria-pressed', String(!!on));
+      });
+      const parts = [];
+      for (let k = 7; k >= 0; k--) if ((v >> k) & 1) parts.push(1 << k);
+      $('bsum' + i).textContent = (parts.join('＋') || '0') + (parts.length > 1 ? `＝${v}` : '');
+      $('hx' + i).textContent = hex2(v);
+      $('hxc' + i).innerHTML = `${dig(v >> 4)}×16＋${dig(v & 15)}＝${v}`;
+    });
+    const ci = $('codeIn');
+    if (document.activeElement !== ci) ci.value = hexOf(c);
+  }
+  function applyCode(text) {
+    const s = text.trim().replace(/^＃/, '#').replace(/[０-９Ａ-Ｆａ-ｆ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    const m = s.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);
+    if (!m) { $('codeErr').textContent = '「#」と、0〜9・A〜F の6けたで入れてね（例：#FF8000）'; return; }
+    let h = m[1];
+    if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    $('codeErr').textContent = '';
+    setRGB([0, 2, 4].map(k => parseInt(h.slice(k, k + 2), 16)));
+    update();
+  }
+
+  // 色当てクイズ
+  function newMake() {
+    let t;
+    do { t = [0, 1, 2].map(() => S.qLevel === 'easy' ? EASY[rand(3)] : rand(256)); }
+    while (same(t, S.rgb) || (S.qTarget && same(t, S.qTarget)));
+    S.qTarget = t; S.qResult = null; S.qReveal = false;
+  }
+  function checkMake() {
+    const a = S.rgb, b = S.qTarget, rm = (a[0] + b[0]) / 2;
+    const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+    const d = Math.sqrt((2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db);
+    const score = Math.max(0, Math.round(100 - d / 3));
+    S.qResult = { score, diff: [b[0] - a[0], b[1] - a[1], b[2] - a[2]] };
+    S.qBest = Math.max(S.qBest, score);
+  }
+  const hintOf = d => Math.abs(d) <= 8 ? 'ぴったり' : Math.abs(d) <= 40 ? (d > 0 ? 'もう少し強く' : 'もう少し弱く') : (d > 0 ? 'もっと強く' : 'もっと弱く');
+  function newPick() {
+    const vals = S.qLevel === 'easy' ? EASY : HARD_PICK, key = c => c.join(',');
+    let t;
+    do { t = [0, 1, 2].map(() => vals[rand(vals.length)]); }
+    while (new Set(t).size < 2 || (S.pick && same(t, S.pick.t)));
+    const opts = new Map([[key(t), t]]);
+    for (const p of shuffle([[0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]])) {
+      if (opts.size >= 4) break;
+      const c = p.map(i => t[i]); opts.set(key(c), c);
+    }
+    while (opts.size < 4) { const c = [0, 1, 2].map(() => vals[rand(vals.length)]); opts.set(key(c), c); }
+    S.pick = { t, list: shuffle([...opts.values()]) };
+    S.pickChosen = null;
+  }
+  function explain(c) {
+    return c.map((v, i) => `<span class="${CH[i].cls}">${CH[i].name} ${hex2(v)}＝${v}</span>`).join('・') + ` → <b>${colorName(c)}</b>`;
+  }
+  function renderQuiz() {
+    $('qMake').hidden = S.qMode !== 'make';
+    $('qPick').hidden = S.qMode !== 'pick';
+    $('qLevelNote').textContent = S.qLevel === 'easy' ? '（かんたん：どの色も 0・128・255 のどれか）' : '（むずかしい：0〜255 のどれでも）';
+    if (S.qMode === 'make') {
+      $('qT').style.background = css(S.qTarget);
+      $('qC').style.background = css(S.rgb);
+      const res = $('qRes');
+      if (!S.qResult && !S.qReveal) { res.hidden = true; }
+      else {
+        res.hidden = false;
+        let html = '';
+        if (S.qResult) {
+          const sc = S.qResult.score;
+          html += `<div class="sc"><span>ぴったり度</span><span class="score">${sc}</span><span>点</span><span class="okt">${sc >= 95 ? 'ほぼぴったり！' : sc >= 80 ? 'おしい！' : ''}</span></div>`
+            + `<div class="hints">${S.qResult.diff.map((d, i) => `<span class="${CH[i].cls}">${CH[i].name}：${hintOf(d)}</span>`).join('')}</div>`;
+        }
+        if (S.qReveal) html += `<p class="qans">こたえ：<code>${hexHTML(S.qTarget)}</code>（${explain(S.qTarget)}）</p>`;
+        res.innerHTML = html;
+      }
+      $('qShow').textContent = S.qReveal ? 'こたえをかくす' : 'こたえを見る';
+    } else {
+      const P = S.pick;
+      $('pCode').innerHTML = hexHTML(P.t);
+      $('pChoices').innerHTML = P.list.map((c, k) => {
+        const answered = S.pickChosen !== null, right = same(c, P.t);
+        const cls = answered ? (right ? ' right' : k === S.pickChosen ? ' wrong' : '') : '';
+        return `<button type="button" class="choice${cls}" data-pick="${k}"${answered ? ' disabled' : ''} aria-label="${k + 1}番の色${answered ? '：' + hexOf(c) : ''}"><span class="sw" style="background:${css(c)}"></span><span class="lb">${answered ? hexOf(c) : ''}</span></button>`;
+      }).join('');
+      const res = $('pRes');
+      if (S.pickChosen === null) res.hidden = true;
+      else {
+        res.hidden = false;
+        const ok = same(P.list[S.pickChosen], P.t);
+        res.innerHTML = `<p class="${ok ? 'okt' : 'ngt'}">${ok ? 'せいかい！' : 'ざんねん… 緑のわくが正解'}</p><p class="qans">${explain(P.t)}</p>`;
+      }
+      $('pScore').innerHTML = S.pickN ? `これまで：<b>${S.pickN}問中 ${S.pickOk}問</b> せいかい` : '';
+    }
+  }
+
+  // ---- 3 階調 ----
+  function drawSky(g) {
+    const H = GS * 0.66;
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#15225C'); sky.addColorStop(0.4, '#5B3C8C'); sky.addColorStop(0.76, '#E0645C'); sky.addColorStop(1, '#FFC56E');
+    g.fillStyle = sky; g.fillRect(0, 0, GS, H);
+    const sx = GS * 0.64, sy = H, sr = GS * 0.075;
+    const glow = g.createRadialGradient(sx, sy, sr, sx, sy, sr * 5);
+    glow.addColorStop(0, 'rgba(255,226,160,0.75)'); glow.addColorStop(1, 'rgba(255,200,130,0)');
+    g.fillStyle = glow; g.fillRect(0, 0, GS, H);
+    g.fillStyle = '#FFF0C8'; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill();
+    const sea = g.createLinearGradient(0, H, 0, GS);
+    sea.addColorStop(0, '#F2A462'); sea.addColorStop(0.35, '#9A587F'); sea.addColorStop(1, '#1C2150');
+    g.fillStyle = sea; g.fillRect(0, H, GS, GS - H);
+    const ref = g.createRadialGradient(sx, H, 0, sx, H, GS * 0.3);
+    ref.addColorStop(0, 'rgba(255,232,185,0.55)'); ref.addColorStop(1, 'rgba(255,232,185,0)');
+    g.fillStyle = ref; g.fillRect(0, H, GS, GS - H);
+  }
+  function drawBall(g) {
+    const bg = g.createLinearGradient(0, 0, 0, GS);
+    bg.addColorStop(0, '#F4F6F9'); bg.addColorStop(0.64, '#D2DAE3'); bg.addColorStop(0.64, '#BCC7D2'); bg.addColorStop(1, '#8391A0');
+    g.fillStyle = bg; g.fillRect(0, 0, GS, GS);
+    const ball = (bx, by, br, stops) => {
+      g.save(); g.translate(bx + br * 0.15, by + br * 1.02); g.scale(1, 0.24);
+      const sh = g.createRadialGradient(0, 0, 0, 0, 0, br * 1.15);
+      sh.addColorStop(0, 'rgba(20,32,43,0.5)'); sh.addColorStop(1, 'rgba(20,32,43,0)');
+      g.fillStyle = sh; g.beginPath(); g.arc(0, 0, br * 1.15, 0, Math.PI * 2); g.fill(); g.restore();
+      const bl = g.createRadialGradient(bx - br * 0.38, by - br * 0.42, br * 0.04, bx, by, br);
+      stops.forEach(([o, c]) => bl.addColorStop(o, c));
+      g.fillStyle = bl; g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill();
+    };
+    ball(GS * 0.4, GS * 0.5, GS * 0.25, [[0, '#FFE6E6'], [0.25, '#F0524F'], [0.7, '#B71C1C'], [1, '#4A0B0B']]);
+    ball(GS * 0.78, GS * 0.66, GS * 0.12, [[0, '#E3EEFF'], [0.3, '#4F8FF0'], [0.75, '#1540A0'], [1, '#0A1E4A']]);
+  }
+  function drawChart(g) {
+    const top = Math.round(GS * 0.76), img = g.createImageData(GS, GS), d = img.data;
+    for (let x = 0; x < GS; x++) {
+      const t6 = x / GS * 6, f = n => { const k = (n + t6) % 6; return 255 * (1 - Math.max(0, Math.min(k, 4 - k, 1))); };
+      const hc = [f(5), f(3), f(1)], gv = x / (GS - 1) * 255;
+      for (let y = 0; y < GS; y++) {
+        const i = (y * GS + x) * 4;
+        let c;
+        if (y < top) {
+          const t = y / (top - 1);
+          c = t < 0.5 ? hc.map(v => 255 + (v - 255) * t * 2) : hc.map(v => v * (1 - (t - 0.5) * 2));
+        } else if (y < top + 18) c = [255, 255, 255];
+        else c = [gv, gv, gv];
+        d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+  }
+  const gSrc = {}, gCache = new Map();
+  function gSource(key) {
+    if (gSrc[key]) return gSrc[key];
+    const c = document.createElement('canvas'); c.width = c.height = GS;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    if (key === 'sky') drawSky(g); else if (key === 'ball') drawBall(g); else drawChart(g);
+    return (gSrc[key] = g.getImageData(0, 0, GS, GS).data);
+  }
+  function gImage(bits) {
+    const k = `${S.gImg}:${S.gMode}:${bits}`;
+    let c = gCache.get(k);
+    if (c) return c;
+    const src = gSource(S.gImg), L = 2 ** bits, img = new ImageData(GS, GS), d = img.data, gray = S.gMode === 'gray';
+    const lut = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) lut[v] = Math.round(Math.round(v / 255 * (L - 1)) * 255 / (L - 1));
+    for (let i = 0; i < d.length; i += 4) {
+      if (gray) { const y = lut[Math.round(0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2])]; d[i] = d[i + 1] = d[i + 2] = y; }
+      else { d[i] = lut[src[i]]; d[i + 1] = lut[src[i + 1]]; d[i + 2] = lut[src[i + 2]]; }
+      d[i + 3] = 255;
+    }
+    c = document.createElement('canvas'); c.width = c.height = GS;
+    c.getContext('2d').putImageData(img, 0, 0);
+    gCache.set(k, c);
+    return c;
+  }
+  const cvG = $('cvG'), cvS = $('cvS');
+  function drawGrad() {
+    const bw = Math.max(240, Math.floor($('gBox').clientWidth)), two = S.gCompare && S.gBits < 8;
+    const gap = two ? 16 : 0, head = two ? 24 : 0;
+    const side = Math.floor(Math.min(two ? (bw - gap) / 2 : bw, Math.max(220, window.innerHeight * 0.5), 560));
+    const w = two ? side * 2 + gap : side, h = side + head;
+    const g = fit(cvG, w, h);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    const one = (img, x) => { g.drawImage(img, x, head, side, side); g.strokeStyle = '#CFD8E1'; g.lineWidth = 1; g.strokeRect(x + 0.5, head + 0.5, side - 1, side - 1); };
+    const L = 2 ** S.gBits, gray = S.gMode === 'gray';
+    if (two) {
+      g.fillStyle = '#566472'; g.font = `bold 14px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillText(`${S.gBits}ビット（${gray ? L + '段' : nf.format(L ** 3) + '色'}）`, side / 2, 2);
+      g.fillText(`8ビット（${gray ? '256段' : '約1678万色'}）`, side + gap + side / 2, 2);
+      one(gImage(S.gBits), 0); one(gImage(8), side + gap);
+    } else one(gImage(S.gBits), 0);
+    cvG.setAttribute('aria-label', gray ? `明るさを${L}段に分けた白黒の画像` : `赤・緑・青をそれぞれ${L}段に分けた画像（${nf.format(L ** 3)}色）`);
+  }
+  function drawStrips() {
+    const w = Math.max(260, Math.floor($('stripBox').clientWidth)), gray = S.gMode === 'gray', rows = gray ? 1 : 3;
+    const L = 2 ** S.gBits, labW = 52, sh = 30, pitch = sh + 24, h = rows * pitch + 2;
+    const g = fit(cvS, w, h), x0 = labW, bw = w - labW - 2;
+    g.textBaseline = 'middle';
+    for (let ri = 0; ri < rows; ri++) {
+      const y = ri * pitch;
+      g.fillStyle = gray ? '#14202B' : ['#C62828', '#2E7D32', '#1565C0'][ri];
+      g.font = `bold 14px ${FONT}`; g.textAlign = 'left';
+      g.fillText(gray ? '明るさ' : CH[ri].name, 0, y + sh / 2);
+      for (let k = 0; k < L; k++) {
+        const v = L === 1 ? 255 : Math.round(k * 255 / (L - 1));
+        const c = gray ? [v, v, v] : [0, 1, 2].map(i => i === ri ? v : 0);
+        const xa = Math.round(x0 + k * bw / L), xb = Math.round(x0 + (k + 1) * bw / L);
+        g.fillStyle = css(c); g.fillRect(xa, y, xb - xa, sh);
+        if (L <= 32 && k > 0) { g.fillStyle = 'rgba(128,140,152,0.8)'; g.fillRect(xa, y, 1, sh); }
+        if (L <= 16) {
+          g.fillStyle = lum(c) > 120 ? '#14202B' : '#FFFFFF';
+          g.font = `bold 13px ${MONO}`; g.textAlign = 'center';
+          g.fillText(String(k), (xa + xb) / 2, y + sh / 2);
+        }
+      }
+      g.strokeStyle = '#CFD8E1'; g.lineWidth = 1; g.strokeRect(x0 + 0.5, y + 0.5, bw - 1, sh - 1);
+      g.fillStyle = '#566472'; g.font = `12px ${FONT}`;
+      g.textAlign = 'left'; g.fillText('0（暗い）', x0, y + sh + 11);
+      g.textAlign = 'right'; g.fillText(`${L - 1}（明るい）`, x0 + bw, y + sh + 11);
+      g.textAlign = 'center'; g.fillText(`${L}段`, x0 + bw / 2, y + sh + 11);
+    }
+  }
+  function renderGrad() {
+    const n = S.gBits, L = 2 ** n, gray = S.gMode === 'gray';
+    $('gBits').value = n;
+    $('gBits').setAttribute('aria-valuetext', `${n}ビット`);
+    $('gBitsOut').innerHTML = `${n}<small>ビット</small>`;
+    $('gBitsName').textContent = gray ? '明るさのビット数' : '1色あたりのビット数';
+    $('gCompare').checked = S.gCompare;
+    $('gCompare').disabled = n >= 8;
+    if (gray) {
+      const kind = n === 1 ? '（白と黒だけ＝<ruby>二<rt>に</rt></ruby><ruby>値<rt>ち</rt></ruby><ruby>画<rt>が</rt></ruby><ruby>像<rt>ぞう</rt></ruby>）' : n === 8 ? '（グレースケール）' : '';
+      $('gBitsNote').innerHTML = `明るさを <b>${L}段</b>（0〜${L - 1}）に分ける → <span class="nw">1<ruby>画<rt>が</rt></ruby><ruby>素<rt>そ</rt></ruby>＝<b>${n}ビット</b></span>${kind}`;
+      $('gCap').innerHTML = `<b><ruby>階<rt>かい</rt></ruby><ruby>調<rt>ちょう</rt></ruby></b>：明るさを <b>${L}段</b> に分けた白黒の画像${kind}`;
+    } else {
+      $('gBitsNote').innerHTML = `赤・緑・青を それぞれ <b>${L}段</b>（0〜${L - 1}）→ ${L}×${L}×${L}＝<b>${nf.format(L ** 3)}色</b> → <span class="nw">1<ruby>画<rt>が</rt></ruby><ruby>素<rt>そ</rt></ruby>＝<b>${n * 3}ビット</b>（${n}×3）</span>`
+        + (n === 8 ? '<span class="nw">＝<b>24ビットフルカラー</b></span>' : '');
+      $('gCap').innerHTML = `<b><ruby>階<rt>かい</rt></ruby><ruby>調<rt>ちょう</rt></ruby></b>：赤・緑・青を それぞれ <b>${L}段</b> に分けた画像 → 使える色は <b>${nf.format(L ** 3)}色</b>`;
+    }
+    $('gFormula').innerHTML = gray
+      ? `段の数 ＝ 2を「ビット数」回かけた数（2<sup>n</sup>）。ビット数が1ふえると、段の数は<b>2倍</b>。<br>白黒は明るさ1つだけなので、<b>色の数＝段の数</b>、1<ruby>画<rt>が</rt></ruby><ruby>素<rt>そ</rt></ruby>＝ビット数。`
+      : `1色の段の数 ＝ 2を「ビット数」回かけた数（2<sup>n</sup>）。<br>色の数 ＝ <b class="r">赤</b>の段 × <b class="g">緑</b>の段 × <b class="b">青</b>の段。1<ruby>画<rt>が</rt></ruby><ruby>素<rt>そ</rt></ruby>のビット数 ＝ ビット数 × 3。`;
+    const head = gray ? ['明るさのビット数', '段の数', '色の数', '1画素のビット数'] : ['1色あたりのビット数', '1色の段の数', '色の数（段×段×段）', '1画素のビット数'];
+    let html = `<thead><tr>${head.map(t => `<th scope="col">${t}</th>`).join('')}</tr></thead><tbody>`;
+    for (let k = 1; k <= 8; k++) {
+      const l = 2 ** k;
+      const tag = gray ? (k === 1 ? '二値画像' : k === 8 ? 'グレースケール' : '') : (k === 1 ? '光の三原色の8色' : k === 8 ? '24ビットフルカラー（約1678万色）' : '');
+      html += `<tr class="${k === n ? 'cur' : ''}"><td><button type="button" class="nb" data-gset="${k}">${k} ビット</button></td><td class="nw">${nf.format(l)}段</td>`
+        + `<td>${gray ? '' : `<span class="calc">${l}×${l}×${l}＝</span>`}<span class="nw">${nf.format(gray ? l : l ** 3)}色</span>${tag ? `<span class="tag">${tag}</span>` : ''}</td>`
+        + `<td class="nw">${gray ? '' : `<span class="calc">${k}×3＝</span>`}${gray ? k : k * 3}ビット</td></tr>`;
+    }
+    $('gTable').innerHTML = html + '</tbody>';
+    drawGrad();
+    drawStrips();
+  }
+
+  // ---- 全体の更新 ----
+  function pressed(sel, key, val) {
+    document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', String(b.dataset[key] === String(val))));
+  }
+  function update() {
+    document.querySelectorAll('.step').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.tab) === S.tab)));
+    document.querySelectorAll('[data-views]').forEach(el => { el.hidden = !el.dataset.views.split(' ').includes(String(S.tab)); });
+    syncSliders();
+    pressed('[data-layout]', 'layout', S.layout);
+    pressed('[data-light]', 'light', S.rgb.join(','));
+    pressed('[data-qmode]', 'qmode', S.qMode);
+    pressed('[data-qlevel]', 'qlevel', S.qLevel);
+    pressed('[data-gimg]', 'gimg', S.gImg);
+    pressed('[data-gmode]', 'gmode', S.gMode);
+    $('zoom').value = S.zoom;
+    $('zoom').setAttribute('aria-valuetext', ['いちばん遠く', '遠く', '少し近く', '近く', 'もっと近く', 'いちばん近く'][S.zoom]);
+    if (S.tab === 1) { drawLights(); renderMix(); drawZoom(); }
+    else if (S.tab === 2) { renderCode(); renderQuiz(); }
+    else renderGrad();
+    checkMissions();
+    renderMissions();
+  }
+  function redraw() {
+    if (S.tab === 1) { drawLights(); drawZoom(); }
+    else if (S.tab === 3) { drawGrad(); drawStrips(); }
+  }
+
+  // ---- 操作 ----
+  document.querySelectorAll('.step').forEach(b => b.addEventListener('click', () => {
+    S.tab = Number(b.dataset.tab);
+    try { history.replaceState(null, '', '#' + S.tab); } catch (e) { /* 使えない環境では何もしない */ }
+    update();
+  }));
+  $('furigana').addEventListener('change', e => { document.body.classList.toggle('no-rt', !e.target.checked); });
+
+  document.addEventListener('input', e => {
+    const t = e.target;
+    if (t.matches('input.sr')) { setCh(Number(t.dataset.ch), Number(t.value)); update(); }
+    else if (t.matches('[data-dec]')) {
+      const v = Number(t.value);
+      if (t.value !== '' && Number.isInteger(v) && v >= 0 && v <= 255) { setCh(Number(t.dataset.dec), v); update(); }
+    }
+  });
+  document.addEventListener('change', e => {
+    const t = e.target;
+    if (t.matches('[data-dec]')) { t.value = S.rgb[Number(t.dataset.dec)]; }
+  });
+
+  let rep = null;
+  const stopRep = () => { if (rep) { clearTimeout(rep.t); clearInterval(rep.i); rep = null; } };
+  const nudge = b => { const i = Number(b.dataset.ch); setCh(i, clamp(S.rgb[i] + Number(b.dataset.d), 0, 255)); update(); };
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.nudge');
+    if (!b) return;
+    e.preventDefault();
+    stopRep();
+    nudge(b);
+    const r = {}; rep = r;
+    r.t = setTimeout(() => { if (rep === r) r.i = setInterval(() => nudge(b), 50); }, 380);
+  });
+  document.addEventListener('pointerup', stopRep);
+  document.addEventListener('pointercancel', stopRep);
+  window.addEventListener('blur', stopRep);
+
+  document.addEventListener('click', e => {
+    const t = e.target;
+    const nb = t.closest('.nudge');
+    if (nb) { if (e.detail === 0) nudge(nb); return; }
+    const bit = t.closest('.bit');
+    if (bit) { const i = Number(bit.dataset.ch); setCh(i, S.rgb[i] ^ (1 << Number(bit.dataset.k))); update(); return; }
+    const lay = t.closest('[data-layout]');
+    if (lay) { S.layout = lay.dataset.layout; S.pos = LAYOUTS[S.layout].map(p => p.slice()); update(); return; }
+    const li = t.closest('[data-light]');
+    if (li) { setRGB(li.dataset.light.split(',').map(Number)); update(); return; }
+    const cb = t.closest('[data-code]');
+    if (cb) { $('codeErr').textContent = ''; applyCode(cb.dataset.code); return; }
+    const qm = t.closest('[data-qmode]');
+    if (qm) { S.qMode = qm.dataset.qmode; update(); return; }
+    const ql = t.closest('[data-qlevel]');
+    if (ql) { S.qLevel = ql.dataset.qlevel; newMake(); newPick(); update(); return; }
+    const pk = t.closest('[data-pick]');
+    if (pk && S.pickChosen === null) {
+      S.pickChosen = Number(pk.dataset.pick); S.pickN++;
+      if (same(S.pick.list[S.pickChosen], S.pick.t)) S.pickOk++;
+      update(); return;
+    }
+    const gi = t.closest('[data-gimg]');
+    if (gi) { S.gImg = gi.dataset.gimg; update(); return; }
+    const gm = t.closest('[data-gmode]');
+    if (gm) { S.gMode = gm.dataset.gmode; update(); return; }
+    const gs = t.closest('[data-gset]');
+    if (gs) { S.gBits = Number(gs.dataset.gset); update(); }
+  });
+
+  $('codeGo').addEventListener('click', () => applyCode($('codeIn').value));
+  $('codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyCode(e.target.value); } });
+  $('qCheck').addEventListener('click', () => { checkMake(); update(); });
+  $('qShow').addEventListener('click', () => { S.qReveal = !S.qReveal; update(); });
+  $('qNext').addEventListener('click', () => { newMake(); update(); });
+  $('pNext').addEventListener('click', () => { newPick(); update(); });
+  $('zoom').addEventListener('input', e => { S.zoom = Number(e.target.value); update(); });
+  $('gBits').addEventListener('input', e => { S.gBits = Number(e.target.value); update(); });
+  $('gCompare').addEventListener('change', e => { S.gCompare = e.target.checked; update(); });
+
+  let lastW = 0;
+  if ('ResizeObserver' in window) {
+    const stage = document.querySelector('.stage');
+    new ResizeObserver(() => { const w = stage.clientWidth; if (w !== lastW) { lastW = w; redraw(); } }).observe(stage);
+  }
+  window.addEventListener('resize', redraw);
+
+  const h = Number(String(location.hash).replace('#', ''));
+  if ([1, 2, 3].includes(h)) S.tab = h;
+  newMake();
+  newPick();
+  update();
+})();
+</script>
+
+</body>
+</html>
