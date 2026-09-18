@@ -69,7 +69,7 @@ button{font:inherit;color:inherit}
 .cap{font-size:14px;color:var(--muted)}
 .cap b{color:var(--ink)}
 .canvas-box{width:100%}
-canvas{display:block;margin-inline:auto;max-width:100%;touch-action:manipulation}
+canvas{display:block;margin-inline:auto;max-width:100%;touch-action:manipulation;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .tap{font-size:13px;color:var(--muted);text-align:center}
 
 .code{grid-area:code;display:grid;gap:8px}
@@ -175,6 +175,10 @@ input[type=number]{width:6em;font:inherit;padding:4px 8px;border:1.5px solid var
 @media (prefers-reduced-motion:reduce){
   .bar span{transition:none}
 }
+/* 画像は印刷にも出さない（写真の持ち出し防止） */
+@media print{
+  canvas{visibility:hidden!important}
+}
 </style>
 </head>
 <body>
@@ -222,7 +226,7 @@ input[type=number]{width:6em;font:inherit;padding:4px 8px;border:1.5px solid var
           <label class="btn primary" for="photo">写真を撮る・えらぶ</label>
           <input type="file" id="photo" class="vh" accept="image/*">
           <p class="note" id="photoStatus" aria-live="polite"></p>
-          <p class="caution">写真はこの端末の中だけで使い、どこにも送りません。人の顔や名前が写らないものをえらぼう。</p>
+          <p class="caution">写真はこの端末の中だけで使い、どこにも送りません。<b>人の顔（友だちも自分も）</b>や名前が写らないもの（ものや景色）をえらぼう。</p>
         </div>
       </div>
       <div class="ctl sep">
@@ -886,6 +890,9 @@ input[type=number]{width:6em;font:inherit;padding:4px 8px;border:1.5px solid var
   $('showGrid').addEventListener('change', e => { S.grid = e.target.checked; update(); });
   $('compare').addEventListener('change', e => { S.compare = e.target.checked; update(); });
   $('furigana').addEventListener('change', e => { document.body.classList.toggle('no-rt', !e.target.checked); });
+
+  // 画像の保存・コピーを止める（右クリック・長押し・ドラッグ）。※ スクリーンショットは止められない
+  ['contextmenu', 'dragstart', 'selectstart'].forEach(ev => cv.addEventListener(ev, e => e.preventDefault()));
 
   cv.addEventListener('click', e => {
     if (!hit || S.stage < 3) return;
