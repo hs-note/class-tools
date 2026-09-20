@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>信頼区間シミュレーター</title>
+<meta name="description" content="区間推定の「区間」が何を意味するのかを、何度も引き直して確かめる教材。">
+<style>
+:root{
+  color-scheme: light;
+  --ground:#E9EEF3;
+  --panel:#FFFFFF;
+  --plot:#F7F9FB;
+  --chip:#FFF7F1;
+  --ink:#14202B;
+  --muted:#566472;
+  --rule:#CFD8E1;
+  --grid:#DCE3EA;
+  --hit:#1565C0;
+  --hit-soft:#D7E5F7;
+  --miss:#C62828;
+  --miss-soft:#F7D9D9;
+  --truth:#1B4FB8;
+  --compare:#7A4B00;
+  --digital:#E0560E;
+  --ok:#2E7D32;
+  --focus:#1B4FB8;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Consolas","Menlo",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--ground)}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.55;padding-inline:16px;padding-block:14px 36px;-webkit-text-size-adjust:100%}
+.wrap{max-width:1180px;margin-inline:auto;display:grid;gap:16px}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(22px,2.4vw,30px);letter-spacing:.02em}
+h2{font-size:19px}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.masthead{display:grid;gap:6px}
+.lead{color:var(--muted);max-width:46em}
+
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:16px 18px;display:grid;gap:14px}
+
+/* モード切り替え */
+.modes{display:flex;flex-wrap:wrap;gap:8px}
+.mode{border:1.5px solid var(--rule);background:var(--panel);border-radius:999px;padding:9px 18px;font-weight:700;cursor:pointer}
+.mode[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+
+/* 設定 */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px 20px;align-items:end}
+.ctrl{display:grid;gap:6px}
+.ctrl label{font-weight:700;font-size:15px}
+.ctrl .val{font-family:var(--mono);color:var(--digital);font-weight:700}
+input[type=range]{width:100%;accent-color:var(--digital)}
+select,input[type=number]{font:inherit;padding:7px 10px;border:1.5px solid var(--rule);border-radius:9px;background:var(--panel);min-width:7em}
+.hint{font-size:13.5px;color:var(--muted)}
+
+.actions{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--ink);background:var(--panel);border-radius:10px;padding:11px 20px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--digital);border-color:var(--digital);color:#fff}
+.btn:hover{filter:brightness(.96)}
+
+/* 図 */
+.plot{background:var(--plot);border:1px solid var(--rule);border-radius:12px;padding:10px}
+svg{display:block;width:100%;height:auto}
+.axis-line{stroke:var(--rule);stroke-width:1.5}
+.tick{stroke:var(--grid);stroke-width:1}
+.tick-label{fill:var(--muted);font-size:13px;font-family:var(--mono)}
+.truth-line{stroke:var(--truth);stroke-width:3}
+.compare-line{stroke:var(--compare);stroke-width:2.5;stroke-dasharray:7 5}
+.line-label{font-size:14px;font-weight:700}
+.bar{stroke-width:7;stroke-linecap:round}
+.bar.hit{stroke:var(--hit)}
+.bar.miss{stroke:var(--miss)}
+.cap{stroke-width:2.5}
+.cap.hit{stroke:var(--hit)}
+.cap.miss{stroke:var(--miss)}
+.mean-dot{r:4.5}
+.mean-dot.hit{fill:var(--hit)}
+.mean-dot.miss{fill:var(--miss)}
+.pt{fill:#41556A;r:5}
+.pt.inside{fill:var(--hit)}
+.pt.outside{fill:var(--miss)}
+.band{fill:var(--hit-soft);stroke:var(--hit);stroke-width:2}
+.ring{fill:none;stroke:var(--hit);stroke-width:4}
+.ring.miss{stroke:var(--miss)}
+.peg{stroke:var(--truth);stroke-width:6;stroke-linecap:round}
+
+/* 結果 */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.stat{background:var(--chip);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;display:grid;gap:2px}
+.stat .k{font-size:14px;color:var(--muted);font-weight:700}
+.stat .v{font-size:26px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.stat .s{font-size:13.5px;color:var(--muted)}
+.stat.hit .v{color:var(--hit)}
+.stat.miss .v{color:var(--miss)}
+.stat.compare .v{color:var(--compare)}
+
+.note{border-left:5px solid var(--digital);background:var(--plot);border-radius:0 10px 10px 0;padding:10px 14px;display:grid;gap:6px}
+.note b{color:var(--digital)}
+ul.plain{margin:0;padding-left:1.2em;display:grid;gap:4px}
+footer{color:var(--muted);font-size:13.5px}
+@media (max-width:640px){
+  body{font-size:16px}
+  .stat .v{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>信頼区間シミュレーター</h1>
+    <p class="lead">「10.38〜11.11」のような<strong>区間</strong>が、いったい何が入っている範囲なのかを、何度も引き直して確かめます。目盛りは「手で 10cm を作る」測定（cm）のつもりで見てください。</p>
+  </header>
+
+  <section class="card" aria-label="見せ方の切り替え">
+    <div class="modes" role="group" aria-label="見せ方">
+      <button class="mode" type="button" id="m1" aria-pressed="true">① 1回ぶんを詳しく</button>
+      <button class="mode" type="button" id="m2" aria-pressed="false">② 20回ぶん引く</button>
+      <button class="mode" type="button" id="m3" aria-pressed="false">③ 輪投げで見る</button>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl">
+        <label for="mu">本当のクセ（真の値） <span class="val" id="muV">10.40</span> cm</label>
+        <input type="range" id="mu" min="9.60" max="11.00" step="0.05" value="10.40">
+        <span class="hint">※ 本当はこの値。ふつうは分かりません。</span>
+      </div>
+      <div class="ctrl">
+        <label for="sd">ばらつき（標準偏差） <span class="val" id="sdV">0.50</span> cm</label>
+        <input type="range" id="sd" min="0.20" max="1.00" step="0.05" value="0.50">
+        <span class="hint">※ 手の震え。大きいほど区間は広がります。</span>
+      </div>
+      <div class="ctrl">
+        <label for="n">1回の測定回数 n</label>
+        <select id="n">
+          <option value="5">5回</option>
+          <option value="10" selected>10回</option>
+          <option value="20">20回</option>
+          <option value="30">30回</option>
+        </select>
+        <span class="hint">※ 授業でやったのは 10 回。</span>
+      </div>
+      <div class="ctrl">
+        <label for="conf">信頼度</label>
+        <select id="conf">
+          <option value="90">90%</option>
+          <option value="95" selected>95%</option>
+          <option value="99">99%</option>
+        </select>
+        <span class="hint" id="tHint">t = 2.262（自由度 9）</span>
+      </div>
+      <div class="ctrl">
+        <label for="cmp">くらべる値</label>
+        <input type="number" id="cmp" min="8" max="13" step="0.1" value="10.0">
+        <span class="hint">※「クセなし」の値。既定は 10.0cm。</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" type="button" id="run">引き直す</button>
+      <button class="btn" type="button" id="reset">数えをリセット</button>
+    </div>
+  </section>
+
+  <section class="card" aria-label="図">
+    <h2 id="plotTitle">① 1回ぶんを詳しく</h2>
+    <div class="plot"><svg id="svg" viewBox="0 0 960 420" role="img" aria-labelledby="svgTitle"><title id="svgTitle">信頼区間の図</title></svg></div>
+    <div class="stats" id="stats"></div>
+    <div class="note" id="note"></div>
+  </section>
+
+  <footer>
+    情報Ⅱ 第18回「統計的推測」用 ／ 数値はその場で作った仮の測定値です（実際の集約シートの値ではありません）。
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // 両側 t 値（自由度 = n-1。授業で使う n だけ持つ）
+  const T = {
+    4:  {90:2.132, 95:2.776, 99:4.604},
+    9:  {90:1.833, 95:2.262, 99:3.250},
+    19: {90:1.729, 95:2.093, 99:2.861},
+    29: {90:1.699, 95:2.045, 99:2.756}
+  };
+
+  const $ = id => document.getElementById(id);
+  const svg = $('svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const fmt = (x, d = 2) => x.toFixed(d);
+
+  let mode = 1;
+  let trials = [];       // ②③用の20本
+  let one = null;        // ①用の1回ぶん
+  let tally = {runs: 0, hit: 0, cmpIn: 0};
+
+  // 正規乱数（Box-Muller）
+  function randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function settings() {
+    const n = +$('n').value;
+    const conf = +$('conf').value;
+    return {
+      mu: +$('mu').value,
+      sd: +$('sd').value,
+      n, conf,
+      t: T[n - 1][conf],
+      cmp: +$('cmp').value
+    };
+  }
+
+  // 1回ぶん＝n回測って、平均・不偏標準偏差・区間を出す
+  function sample(s) {
+    const xs = Array.from({length: s.n}, () => s.mu + s.sd * randn());
+    const mean = xs.reduce((a, b) => a + b, 0) / s.n;
+    const varUnbiased = xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (s.n - 1);
+    const sdU = Math.sqrt(varUnbiased);
+    const half = s.t * sdU / Math.sqrt(s.n);
+    return {xs, mean, sdU, half, lo: mean - half, hi: mean + half};
+  }
+
+  function draw() {
+    const s = settings();
+    svg.replaceChildren(el('title', {id: 'svgTitle'}, '信頼区間の図'));
+    if (mode === 1) drawOne(s);
+    else if (mode === 2) drawMany(s);
+    else drawRings(s);
+    renderStats(s);
+    renderNote(s);
+  }
+
+  // x座標（cm → px）
+  function scaler(s, pad = 70, w = 960) {
+    const spread = Math.max(3 * s.sd, 4 * s.sd / Math.sqrt(s.n) + s.t * s.sd / Math.sqrt(s.n) * 1.4);
+    let lo = Math.min(s.mu - spread, s.cmp - 0.3);
+    let hi = Math.max(s.mu + spread, s.cmp + 0.3);
+    const x = v => pad + (v - lo) / (hi - lo) * (w - pad * 2);
+    return {x, lo, hi};
+  }
+
+  function axis(s, sc, y, w = 960) {
+    const g = el('g');
+    g.append(el('line', {x1: 50, y1: y, x2: w - 50, y2: y, class: 'axis-line'}));
+    const step = (sc.hi - sc.lo) > 3 ? 0.5 : 0.25;
+    const start = Math.ceil(sc.lo / step) * step;
+    for (let v = start; v <= sc.hi + 1e-9; v += step) {
+      g.append(el('line', {x1: sc.x(v), y1: y - 6, x2: sc.x(v), y2: y + 6, class: 'tick'}));
+      g.append(el('text', {x: sc.x(v), y: y + 26, class: 'tick-label', 'text-anchor': 'middle'}, fmt(v, 2)));
+    }
+    g.append(el('text', {x: w - 50, y: y + 46, class: 'tick-label', 'text-anchor': 'end'}, 'cm'));
+    return g;
+  }
+
+  function truthLines(s, sc, yTop, yBottom) {
+    const g = el('g');
+    g.append(el('line', {x1: sc.x(s.mu), y1: yTop, x2: sc.x(s.mu), y2: yBottom, class: 'truth-line'}));
+    g.append(el('text', {x: sc.x(s.mu), y: yTop - 8, class: 'line-label', fill: 'var(--truth)', 'text-anchor': 'middle'},
+      `本当のクセ ${fmt(s.mu)}`));
+    g.append(el('line', {x1: sc.x(s.cmp), y1: yTop, x2: sc.x(s.cmp), y2: yBottom, class: 'compare-line'}));
+    g.append(el('text', {x: sc.x(s.cmp), y: yBottom + 44, class: 'line-label', fill: 'var(--compare)', 'text-anchor': 'middle'},
+      `くらべる値 ${fmt(s.cmp, 1)}`));
+    return g;
+  }
+
+  // ① 1回ぶん＝点10個と帯
+  function drawOne(s) {
+    if (!one) one = sample(s);
+    const d = one;
+    const sc = scaler(s);
+    const yAxis = 330, yBand = 150;
+    svg.append(truthLines(s, sc, 60, yAxis));
+
+    // 帯（信頼区間）
+    svg.append(el('rect', {
+      x: sc.x(d.lo), y: yBand - 26, width: Math.max(2, sc.x(d.hi) - sc.x(d.lo)), height: 52,
+      rx: 10, class: 'band', 'fill-opacity': '.55'
+    }));
+    svg.append(el('text', {x: (sc.x(d.lo) + sc.x(d.hi)) / 2, y: yBand + 5, 'text-anchor': 'middle',
+      'font-weight': '700', fill: 'var(--hit)'}, `${fmt(d.lo)} 〜 ${fmt(d.hi)}`));
+
+    // 測定した点（縦に散らす）
+    const inside = [];
+    d.xs.forEach((v, i) => {
+      const cy = yAxis - 40 - (i % 5) * 22;
+      const isIn = v >= d.lo && v <= d.hi;
+      if (isIn) inside.push(v);
+      svg.append(el('circle', {cx: sc.x(v), cy, class: 'pt ' + (isIn ? 'inside' : 'outside')}));
+    });
+    one.insideCount = inside.length;
+
+    // 平均
+    svg.append(el('line', {x1: sc.x(d.mean), y1: yBand - 34, x2: sc.x(d.mean), y2: yBand + 34,
+      stroke: 'var(--hit)', 'stroke-width': 3}));
+    svg.append(el('text', {x: sc.x(d.mean), y: yBand - 42, 'text-anchor': 'middle', 'font-weight': '700',
+      fill: 'var(--hit)'}, `平均 ${fmt(d.mean)}`));
+
+    svg.append(axis(s, sc, yAxis));
+    svg.append(el('text', {x: 50, y: 395, class: 'tick-label'},
+      `● = 1回の測定（${s.n}回ぶん） ／ 帯 = ${s.conf}% 信頼区間`));
+  }
+
+  // ② 20本
+  function drawMany(s) {
+    if (!trials.length) trials = Array.from({length: 20}, () => sample(s));
+    const sc = scaler(s);
+    const top = 70, rowH = 13.5, yAxis = top + 20 * rowH + 18;
+    svg.setAttribute('viewBox', `0 0 960 ${yAxis + 90}`);
+    svg.append(truthLines(s, sc, top - 14, yAxis));
+
+    trials.forEach((d, i) => {
+      const y = top + i * rowH + 6;
+      const hit = d.lo <= s.mu && s.mu <= d.hi;
+      svg.append(el('line', {x1: sc.x(d.lo), y1: y, x2: sc.x(d.hi), y2: y, class: 'bar ' + (hit ? 'hit' : 'miss'),
+        'stroke-opacity': hit ? '.55' : '.9'}));
+      svg.append(el('circle', {cx: sc.x(d.mean), cy: y, class: 'mean-dot ' + (hit ? 'hit' : 'miss')}));
+    });
+
+    svg.append(axis(s, sc, yAxis));
+    svg.append(el('text', {x: 50, y: yAxis + 66, class: 'tick-label'},
+      '青 = 本当のクセを含む区間 ／ 赤 = 外した区間（●は、その回の平均）'));
+  }
+
+  // ③ 輪投げ
+  function drawRings(s) {
+    if (!trials.length) trials = Array.from({length: 20}, () => sample(s));
+    const sc = scaler(s);
+    const yAxis = 340, pegTop = 90;
+    svg.setAttribute('viewBox', '0 0 960 430');
+
+    // 杭＝本当のクセ
+    svg.append(el('line', {x1: sc.x(s.mu), y1: pegTop, x2: sc.x(s.mu), y2: yAxis, class: 'peg'}));
+    svg.append(el('text', {x: sc.x(s.mu), y: pegTop - 12, class: 'line-label', fill: 'var(--truth)',
+      'text-anchor': 'middle'}, `杭＝本当のクセ ${fmt(s.mu)}`));
+
+    // 輪＝区間（横長の楕円）
+    trials.forEach((d, i) => {
+      const hit = d.lo <= s.mu && s.mu <= d.hi;
+      const cy = pegTop + 28 + i * 11.5;
+      const rx = Math.max(6, (sc.x(d.hi) - sc.x(d.lo)) / 2);
+      svg.append(el('ellipse', {cx: sc.x(d.mean), cy, rx, ry: 7.5,
+        class: 'ring' + (hit ? '' : ' miss'), 'stroke-opacity': hit ? '.65' : '.9'}));
+    });
+
+    svg.append(axis(s, sc, yAxis));
+    svg.append(el('text', {x: 50, y: 408, class: 'tick-label'},
+      '杭は動かない。動くのは輪（区間）のほう。20回投げて、杭に入るのが何本か。'));
+  }
+
+  function renderStats(s) {
+    const box = $('stats');
+    box.replaceChildren();
+    const add = (k, v, sub, cls) => {
+      const d = document.createElement('div');
+      d.className = 'stat' + (cls ? ' ' + cls : '');
+      const a = document.createElement('div'); a.className = 'k'; a.textContent = k;
+      const b = document.createElement('div'); b.className = 'v'; b.textContent = v;
+      const c = document.createElement('div'); c.className = 's'; c.textContent = sub || '';
+      d.append(a, b, c);
+      box.append(d);
+    };
+
+    if (mode === 1 && one) {
+      add('この回の区間', `${fmt(one.lo)} 〜 ${fmt(one.hi)}`, `平均 ${fmt(one.mean)} ／ 不偏標準偏差 ${fmt(one.sdU)}`);
+      add('帯の中に入った測定値', `${one.insideCount} / ${s.n} 個`, '★ 区間は「測定値の入る範囲」ではない', 'hit');
+      add('本当のクセを含む？', (one.lo <= s.mu && s.mu <= one.hi) ? '含む' : '外した',
+        `本当のクセ ${fmt(s.mu)}`, (one.lo <= s.mu && s.mu <= one.hi) ? 'hit' : 'miss');
+      add('くらべる値を含む？', (one.lo <= s.cmp && s.cmp <= one.hi) ? '含む' : '含まない',
+        `${fmt(s.cmp, 1)} を含むと「言い切れない」`, 'compare');
+    } else {
+      const hit = trials.filter(d => d.lo <= s.mu && s.mu <= d.hi).length;
+      const cmpIn = trials.filter(d => d.lo <= s.cmp && s.cmp <= d.hi).length;
+      add('本当のクセを含んだ区間', `${hit} / 20 本`, `信頼度 ${s.conf}% なら 約${Math.round(s.conf / 5)} 本`, 'hit');
+      add('外した区間', `${20 - hit} 本`, '★ 外すことも必ずある', 'miss');
+      add('くらべる値を含んだ区間', `${cmpIn} / 20 本`, `${fmt(s.cmp, 1)} を含む＝「言い切れない」回`, 'compare');
+      add('これまでの合計', tally.runs ? `${tally.hit} / ${tally.runs * 20} 本` : '—',
+        tally.runs ? `${(tally.hit / (tally.runs * 20) * 100).toFixed(1)}%（引き直すほど信頼度に近づく）` : '「引き直す」を押すと増えます');
+    }
+  }
+
+  function renderNote(s) {
+    const box = $('note');
+    box.replaceChildren();
+    const p = (html) => { const e = document.createElement('p'); e.innerHTML = html; return e; };
+    if (mode === 1) {
+      box.append(
+        p('<b>この図で言いたいこと</b>'),
+        p(`帯（区間）の中に入っている測定値は <b>${one ? one.insideCount : '—'} 個 / ${s.n} 個</b>。つまり区間は「<b>自分の測定値の ${s.conf}% が入る範囲</b>」ではありません。`),
+        p('区間が挟もうとしているのは、<b>1本の線（本当のクセ）</b>のほうです。')
+      );
+    } else if (mode === 2) {
+      box.append(
+        p('<b>この図で言いたいこと</b>'),
+        p(`区間は毎回ちがう場所に出ます。動くのは<b>区間のほう</b>で、本当のクセ（青い線）は動きません。`),
+        p(`${s.conf}% というのは「<b>同じやり方で何度もやったら、そのうち約 ${s.conf}% の区間が本当のクセを挟む</b>」という意味です。`),
+        p(`くらべる値 ${fmt(s.cmp, 1)} を含んだ区間は、この20本のうち <b>${trials.filter(d => d.lo <= s.cmp && s.cmp <= d.hi).length} 本</b>。★ <b>含む＝クセが無い、ではありません</b>。「言い切れない」だけです。`)
+      );
+    } else {
+      box.append(
+        p('<b>この図で言いたいこと</b>'),
+        p('杭（本当のクセ）は動きません。投げるたびに位置がちがうのは<b>輪（区間）</b>のほうです。'),
+        p(`「95%」は<b>輪の側の成績</b>＝「投げれば約95%は杭に入る」。杭が動いているわけではありません。`)
+      );
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    [1, 2, 3].forEach(i => $('m' + i).setAttribute('aria-pressed', String(i === m)));
+    $('plotTitle').textContent = {1: '① 1回ぶんを詳しく', 2: '② 20回ぶん引く', 3: '③ 輪投げで見る'}[m];
+    svg.setAttribute('viewBox', '0 0 960 420');
+    draw();
+  }
+
+  function run() {
+    const s = settings();
+    one = sample(s);
+    trials = Array.from({length: 20}, () => sample(s));
+    if (mode !== 1) {
+      tally.runs += 1;
+      tally.hit += trials.filter(d => d.lo <= s.mu && s.mu <= d.hi).length;
+    }
+    draw();
+  }
+
+  function refresh() {
+    const s = settings();
+    $('muV').textContent = fmt(s.mu);
+    $('sdV').textContent = fmt(s.sd);
+    $('tHint').textContent = `t = ${s.t}（自由度 ${s.n - 1}）`;
+    one = null; trials = [];
+    draw();
+  }
+
+  ['mu', 'sd', 'n', 'conf', 'cmp'].forEach(id => {
+    $(id).addEventListener('input', refresh);
+    $(id).addEventListener('change', refresh);
+  });
+  $('run').addEventListener('click', run);
+  $('reset').addEventListener('click', () => { tally = {runs: 0, hit: 0, cmpIn: 0}; refresh(); });
+  [1, 2, 3].forEach(i => $('m' + i).addEventListener('click', () => setMode(i)));
+
+  refresh();
+})();
+</script>
+</body>
+</html>
