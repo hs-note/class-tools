@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文字コードビューア</title>
+<style>
+:root{
+  color-scheme: light;
+  --ground:#E9EEF3;
+  --panel:#FFFFFF;
+  --plot:#F7F9FB;
+  --chip:#FFF7F1;
+  --ink:#14202B;
+  --muted:#566472;
+  --rule:#CFD8E1;
+  --grid:#DCE3EA;
+  --num:#2E5FCC;         /* 番号（Unicode）＝青 */
+  --num-soft:#A9BEEB;
+  --way:#E0560E;         /* 書き方（UTF-8など）＝オレンジ */
+  --way-soft:#F6CDB3;
+  --ng:#B42318;
+  --focus:#1B4FB8;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Consolas","Menlo",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--ground)}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:14px 36px;-webkit-text-size-adjust:100%}
+.wrap{max-width:1180px;margin-inline:auto;display:grid;gap:14px}
+h1,h2{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:clamp(20px,2.1vw,28px);letter-spacing:.02em}
+h2{font-size:17px}
+p{margin:0}
+rt{font-size:.55em;font-weight:400;letter-spacing:0}
+.no-rt rt{display:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+/* 上の帯 */
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px}
+.name{display:grid;gap:2px}
+.sub{color:var(--muted);font-size:14px}
+.sub b{color:var(--ink)}
+.steps{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.step{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1.5px solid var(--rule);border-radius:10px;background:var(--panel);cursor:pointer;text-align:left}
+.step:hover{border-color:var(--ink)}
+.step .num{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:var(--grid);font-weight:700;font-variant-numeric:tabular-nums}
+.step .lbl{display:grid;line-height:1.25;font-weight:700}
+.step small{font-size:12px;font-weight:400;color:var(--muted)}
+.step[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:#fff}
+.step[aria-pressed="true"] .num{background:var(--way);color:#fff}
+.step[aria-pressed="true"] small{color:#D5DDE5}
+.furi{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.furi input{width:18px;height:18px;accent-color:var(--ink)}
+
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:14px 16px;display:grid;gap:10px}
+
+/* 入力 */
+.inrow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 18px}
+.field{display:grid;gap:4px}
+.field label{font-size:14px;font-weight:700}
+#text{font-family:var(--font);font-size:clamp(22px,2.6vw,30px);padding:6px 12px;width:min(420px,72vw);border:2px solid var(--rule);border-radius:10px;background:var(--plot);color:var(--ink)}
+#text:focus{border-color:var(--focus);outline:none}
+.count{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.count.full{color:var(--way);font-weight:700}
+.samples{display:flex;flex-wrap:wrap;gap:6px}
+.samples .lb{font-size:14px;color:var(--muted);align-self:center}
+.samp{padding:4px 10px;border:1.5px solid var(--rule);border-radius:999px;background:var(--panel);cursor:pointer}
+.samp:hover{border-color:var(--ink)}
+.opt{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);cursor:pointer}
+.opt input{width:18px;height:18px;accent-color:var(--way)}
+
+/* 見かた */
+.legend{display:grid;gap:4px;background:var(--plot);border-radius:10px;padding:8px 12px;font-size:14px}
+.legend b.n{color:var(--num)}
+.legend b.w{color:var(--way)}
+
+/* 表 */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:680px}
+th,td{border-bottom:1px solid var(--grid);padding:7px 10px;text-align:left;vertical-align:middle}
+thead th{font-size:14px;color:var(--muted);border-bottom:2px solid var(--rule);white-space:nowrap}
+thead th.n{color:var(--num)}
+thead th.w{color:var(--way)}
+td.ch{font-size:clamp(26px,3vw,34px);font-weight:700;line-height:1.1;white-space:nowrap}
+td.ch .badge{display:block;font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.02em}
+.hex{font-family:var(--mono);font-size:clamp(15px,1.7vw,20px);letter-spacing:.06em;white-space:nowrap}
+.hex.n{color:var(--num)}
+.hex.w{color:var(--way)}
+.dec{font-family:var(--mono);font-size:clamp(15px,1.7vw,19px);font-variant-numeric:tabular-nums}
+.bin{display:block;font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+.bytes{display:block;font-size:11px;color:var(--muted)}
+.ng{color:var(--ng);font-weight:700}
+tbody tr:nth-child(even){background:#FBFCFD}
+.empty{color:var(--muted);padding:10px 0}
+
+/* 合計 */
+.sums{display:flex;flex-wrap:wrap;gap:8px}
+.sum{display:grid;justify-items:center;min-width:132px;padding:6px 14px;border:1px solid var(--way-soft);background:var(--chip);border-radius:10px}
+.sum .k{font-size:13px;color:var(--muted)}
+.sum .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--way)}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink)}
+
+/* 文字化け */
+.broke{display:grid;gap:12px}
+.flow{display:grid;gap:6px;background:var(--plot);border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
+.flow .k{font-size:14px;font-weight:700}
+.flow .stream{font-family:var(--mono);font-size:14px;color:var(--muted);word-break:break-all}
+.flow .out{font-size:clamp(20px,2.4vw,28px);font-weight:700;word-break:break-all;min-height:1.4em}
+.flow .out.bad{color:var(--ng)}
+.arrow{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="name">
+      <h1><ruby>文<rt>も</rt></ruby><ruby>字<rt>じ</rt></ruby>コードビューア</h1>
+      <p class="sub">入れた文字が、コンピュータの中で<b>どんな数</b>になっているかを見る（<ruby>最<rt>さい</rt></ruby><ruby>大<rt>だい</rt></ruby>10文字）</p>
+    </div>
+    <nav class="steps" aria-label="ページ">
+      <button type="button" class="step" data-tab="1" aria-pressed="true"><span class="num">1</span><span class="lbl">コードを見る<small>16進数で表示</small></span></button>
+      <button type="button" class="step" data-tab="2" aria-pressed="false"><span class="num">2</span><span class="lbl"><span><ruby>文<rt>も</rt></ruby><ruby>字<rt>じ</rt></ruby><ruby>化<rt>ば</rt></ruby>け</span><small>わざと壊す</small></span></button>
+    </nav>
+    <label class="furi"><input type="checkbox" id="furigana" checked>ふりがな</label>
+  </header>
+
+  <!-- 入力 -->
+  <section class="card" aria-label="入力">
+    <div class="inrow">
+      <div class="field">
+        <label for="text">文字を入れる</label>
+        <input id="text" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="あいうえお" aria-describedby="count">
+      </div>
+      <p class="count" id="count"></p>
+      <label class="opt"><input type="checkbox" id="bin">2<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby>も見る</label>
+    </div>
+    <div class="samples">
+      <span class="lb">れい：</span>
+      <button type="button" class="samp" data-s="あいうえお">あいうえお</button>
+      <button type="button" class="samp" data-s="abcde">abcde</button>
+      <button type="button" class="samp" data-s="A">A だけ</button>
+      <button type="button" class="samp" data-s="café">café</button>
+      <button type="button" class="samp" data-s="こんにちは">こんにちは</button>
+      <button type="button" class="samp" data-s="漢字と数字123">漢字と数字123</button>
+      <button type="button" class="samp" data-s="ﾊﾝｶｸｶﾅ">ﾊﾝｶｸｶﾅ（半角）</button>
+      <button type="button" class="samp" data-s="😀🍙">絵文字</button>
+    </div>
+  </section>
+
+  <!-- 1ページ：表 -->
+  <section class="card" id="tab1" aria-label="文字コードの表">
+    <div class="legend">
+      <p><b class="n">Unicode（ユニコード）＝<ruby>背<rt>せ</rt></ruby><ruby>番<rt>ばん</rt></ruby><ruby>号<rt>ごう</rt></ruby></b>…どの文字に何番をつけるか、の<ruby>決<rt>き</rt></ruby>まり</p>
+      <p><b class="w">UTF-8／UTF-16／Shift_JIS ＝ 書き<ruby>方<rt>かた</rt></ruby></b>…その番号を、じっさいに<b>何バイトの0と1で書くか</b>の決まり</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>文字</th>
+            <th class="n">10<ruby>進<rt>しん</rt></ruby><ruby>数<rt>すう</rt></ruby></th>
+            <th class="n">Unicode（16進数）</th>
+            <th class="w">UTF-8</th>
+            <th class="w">UTF-16</th>
+            <th class="w">Shift_JIS</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="sums" id="sums"></div>
+    <p class="note" id="sumNote"></p>
+  </section>
+
+  <!-- 2ページ：文字化け -->
+  <section class="card broke" id="tab2" aria-label="文字化け" hidden>
+    <p class="note">同じ<b>0と1の列</b>でも、<b>書いたときの決まり</b>と<b>読むときの決まり</b>がちがうと、別の文字になってしまう。これが<b>文字化け</b>。</p>
+
+    <div class="flow">
+      <p class="k">① <b class="hex w">UTF-8</b> で書いた列を、<b class="hex w">Shift_JIS</b> として読むと</p>
+      <p class="stream" id="b1bytes"></p>
+      <p class="arrow">↓ Shift_JIS のつもりで読む</p>
+      <p class="out bad" id="b1out"></p>
+    </div>
+
+    <div class="flow">
+      <p class="k">② <b class="hex w">Shift_JIS</b> で書いた列を、<b class="hex w">UTF-8</b> として読むと</p>
+      <p class="stream" id="b2bytes"></p>
+      <p class="arrow">↓ UTF-8 のつもりで読む</p>
+      <p class="out bad" id="b2out"></p>
+      <p class="note" id="b2note"></p>
+    </div>
+
+    <p class="note">🔴 <b>「�」</b>や<b>「?」</b>が出るのは、<b>読み方の決まりに合う組み合わせが無かった</b>とき。つまり<b>読めなかった印</b>。</p>
+  </section>
+
+  <p class="note">※ このページは、入れた文字を<b>この端末の中だけ</b>で計算しています（どこにも送りません）。</p>
+</main>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const LIMIT = 10;
+const enc = new TextEncoder();
+
+/* ---- Shift_JIS の対応表を、ブラウザの読み取り機能から逆引きで作る ---- */
+let SJIS = null;         // Map: 文字 -> [バイト...]
+let sjisOk = false;
+function buildSjis(){
+  let dec;
+  try { dec = new TextDecoder('shift_jis', { fatal: true }); }
+  catch (e) { return null; }
+  const map = new Map();
+  const put = (s, bytes) => { if (s && s.length && !map.has(s)) map.set(s, bytes); };
+  const isLead = b => (b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC);
+  const one = new Uint8Array(1);
+  for (let b = 0; b <= 0xFF; b++){
+    if (isLead(b)) continue;
+    one[0] = b;
+    try { put(dec.decode(one), [b]); } catch (e) {}
+  }
+  const two = new Uint8Array(2);
+  for (let l = 0x81; l <= 0xFC; l++){
+    if (!isLead(l)) continue;
+    two[0] = l;
+    for (let t = 0x40; t <= 0xFC; t++){
+      two[1] = t;
+      try { put(dec.decode(two), [l, t]); } catch (e) {}
+    }
+  }
+  return map;
+}
+
+/* ---- 小道具 ---- */
+const hex = (n, w) => n.toString(16).toUpperCase().padStart(w, '0');
+const hexBytes = bytes => Array.from(bytes, b => hex(b, 2)).join(' ');
+const binBytes = bytes => Array.from(bytes, b => b.toString(2).padStart(8, '0')).join(' ');
+const utf16Units = ch => { const u = []; for (let i = 0; i < ch.length; i++) u.push(ch.charCodeAt(i)); return u; };
+
+/* 表示用の文字（空白は見えるようにする） */
+function shown(ch){
+  if (ch === ' ')      return { t: '␣', b: '半角スペース' };
+  if (ch === '　') return { t: '␣', b: '全角スペース' };
+  if (ch === '\t')     return { t: '→', b: 'タブ' };
+  return { t: ch, b: '' };
+}
+
+function charsOf(s){ return Array.from(s).slice(0, LIMIT); }
+
+/* ---- 表を書く ---- */
+function render(){
+  const raw = $('text').value;
+  const all = Array.from(raw);
+  const chars = all.slice(0, LIMIT);
+  const showBin = $('bin').checked;
+
+  const c = $('count');
+  c.textContent = `${all.length} / ${LIMIT} 文字`;
+  c.classList.toggle('full', all.length >= LIMIT);
+
+  const tb = $('rows');
+  tb.textContent = '';
+  if (!chars.length){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6; td.className = 'empty'; td.textContent = '文字を入れると、ここに出ます。';
+    tr.appendChild(td); tb.appendChild(tr);
+  }
+
+  let n8 = 0, n16 = 0, nSj = 0, sjisMissing = 0;
+
+  for (const ch of chars){
+    const cp = ch.codePointAt(0);
+    const u8 = enc.encode(ch);
+    const units = utf16Units(ch);
+    const sj = SJIS ? SJIS.get(ch) : null;
+    n8 += u8.length;
+    n16 += units.length * 2;
+    if (sj) nSj += sj.length; else sjisMissing++;
+
+    const tr = document.createElement('tr');
+
+    // 文字
+    const sh = shown(ch);
+    const badges = [];
+    if (sh.b) badges.push(sh.b);
+    if (cp < 0x80) badges.push('ASCII の範囲');
+    if (cp > 0xFFFF) badges.push('UTF-16 は2つ組');
+    const td0 = document.createElement('td');
+    td0.className = 'ch';
+    td0.append(document.createTextNode(sh.t));
+    if (badges.length){
+      const sp = document.createElement('span');
+      sp.className = 'badge'; sp.textContent = badges.join('・');
+      td0.appendChild(sp);
+    }
+    tr.appendChild(td0);
+
+    // 10進数
+    const td1 = document.createElement('td');
+    td1.className = 'dec'; td1.textContent = String(cp);
+    tr.appendChild(td1);
+
+    // Unicode
+    const td2 = document.createElement('td');
+    td2.className = 'hex n'; td2.textContent = 'U+' + hex(cp, 4);
+    tr.appendChild(td2);
+
+    // UTF-8
+    const td3 = document.createElement('td');
+    const s3 = document.createElement('span');
+    s3.className = 'hex w'; s3.textContent = hexBytes(u8);
+    td3.appendChild(s3);
+    const b3 = document.createElement('span');
+    b3.className = 'bytes'; b3.textContent = `${u8.length} バイト`;
+    td3.appendChild(b3);
+    if (showBin){
+      const bn = document.createElement('span');
+      bn.className = 'bin'; bn.textContent = binBytes(u8);
+      td3.appendChild(bn);
+    }
+    tr.appendChild(td3);
+
+    // UTF-16
+    const td4 = document.createElement('td');
+    const s4 = document.createElement('span');
+    s4.className = 'hex w'; s4.textContent = units.map(u => hex(u, 4)).join(' ');
+    td4.appendChild(s4);
+    const b4 = document.createElement('span');
+    b4.className = 'bytes'; b4.textContent = `${units.length * 2} バイト`;
+    td4.appendChild(b4);
+    tr.appendChild(td4);
+
+    // Shift_JIS
+    const td5 = document.createElement('td');
+    if (!sjisOk){
+      td5.innerHTML = '<span class="bytes">このブラウザでは表示できません</span>';
+    } else if (sj){
+      const s5 = document.createElement('span');
+      s5.className = 'hex w'; s5.textContent = hexBytes(sj);
+      td5.appendChild(s5);
+      const b5 = document.createElement('span');
+      b5.className = 'bytes'; b5.textContent = `${sj.length} バイト`;
+      td5.appendChild(b5);
+    } else {
+      const s5 = document.createElement('span');
+      s5.className = 'hex ng'; s5.textContent = '×';
+      td5.appendChild(s5);
+      const b5 = document.createElement('span');
+      b5.className = 'bytes'; b5.textContent = 'この表に無い文字';
+      td5.appendChild(b5);
+    }
+    tr.appendChild(td5);
+
+    tb.appendChild(tr);
+  }
+
+  // 合計
+  const sums = $('sums');
+  sums.textContent = '';
+  if (chars.length){
+    const items = [
+      ['UTF-8', `${n8} バイト`],
+      ['UTF-16', `${n16} バイト`],
+      ['Shift_JIS', sjisOk ? (sjisMissing ? `${nSj} バイト＋×${sjisMissing}` : `${nSj} バイト`) : '—']
+    ];
+    for (const [k, v] of items){
+      const d = document.createElement('div');
+      d.className = 'sum';
+      d.innerHTML = `<span class="k"></span><span class="v"></span>`;
+      d.firstChild.textContent = k;
+      d.lastChild.textContent = v;
+      sums.appendChild(d);
+    }
+  }
+  $('sumNote').innerHTML = chars.length
+    ? '🔴 <b>UTF-8 は 番号が大きい文字ほどバイトがふえる（1〜4バイト）</b>'
+      + '<br>　　U+0000〜007F（英数字＝ASCII）<b>1バイト</b>／U+0080〜07FF（é・Ω など）<b>2バイト</b>／'
+      + 'U+0800〜FFFF（<b>ひらがな・カタカナ・漢字</b>）<b>3バイト</b>／U+10000〜（絵文字など）<b>4バイト</b>'
+      + '<br>　　UTF-16 も ふつうは2バイト・絵文字などは4バイト。Shift_JIS は <b>半角1バイト・全角2バイト</b>。'
+      + '<br>　　★<b>半角カナ</b>（ｱ）は Shift_JIS なら1バイトだが、UTF-8 では<b>3バイト</b>＝「半角だから軽い」は Shift_JIS だけの話。'
+    : '';
+
+  renderBroken(chars, sjisMissing);
+}
+
+/* ---- 文字化けのページ ---- */
+function renderBroken(chars, sjisMissing){
+  const s = chars.join('');
+  const u8 = enc.encode(s);
+  $('b1bytes').textContent = u8.length ? hexBytes(u8) : '';
+  let out1 = '';
+  if (u8.length && sjisOk){
+    try { out1 = new TextDecoder('shift_jis').decode(u8); } catch (e) { out1 = ''; }
+  }
+  $('b1out').textContent = out1;
+
+  // Shift_JIS のバイト列（表に無い文字は飛ばす）
+  const bytes = [];
+  for (const ch of chars){ const sj = SJIS ? SJIS.get(ch) : null; if (sj) bytes.push(...sj); }
+  const sjArr = new Uint8Array(bytes);
+  $('b2bytes').textContent = sjArr.length ? hexBytes(sjArr) : '';
+  let out2 = '';
+  if (sjArr.length){
+    try { out2 = new TextDecoder('utf-8').decode(sjArr); } catch (e) { out2 = ''; }
+  }
+  $('b2out').textContent = out2;
+  $('b2note').textContent = !sjisOk
+    ? '※ このブラウザは Shift_JIS に対応していないため、②は出せません。'
+    : (sjisMissing ? `※ Shift_JIS の表に無い文字（絵文字など）${sjisMissing} 字は、この行から外しています。` : '');
+}
+
+/* ---- 操作 ---- */
+function clamp(){
+  const el = $('text');
+  const a = Array.from(el.value);
+  if (a.length > LIMIT){ el.value = a.slice(0, LIMIT).join(''); }
+}
+$('text').addEventListener('input', e => { if (!e.isComposing) clamp(); render(); });
+$('text').addEventListener('compositionend', () => { clamp(); render(); });
+$('text').addEventListener('change', () => { clamp(); render(); });
+$('bin').addEventListener('change', render);
+for (const b of document.querySelectorAll('.samp')){
+  b.addEventListener('click', () => { $('text').value = b.dataset.s; clamp(); render(); $('text').focus(); });
+}
+for (const b of document.querySelectorAll('.step')){
+  b.addEventListener('click', () => {
+    const t = b.dataset.tab;
+    for (const o of document.querySelectorAll('.step')) o.setAttribute('aria-pressed', String(o === b));
+    $('tab1').hidden = (t !== '1');
+    $('tab2').hidden = (t !== '2');
+  });
+}
+$('furigana').addEventListener('change', e => { document.body.classList.toggle('no-rt', !e.target.checked); });
+
+SJIS = buildSjis();
+sjisOk = !!SJIS;
+render();
+</script>
+</body>
+</html>

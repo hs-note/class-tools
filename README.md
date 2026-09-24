@@ -13,6 +13,7 @@
 
 | 教材 | 科目 | 開く |
 |---|---|---|
+| 文字コードビューア（Unicode・UTF-8・UTF-16・Shift_JIS を16進数で／文字化け） | 情報Ⅰ | https://hs-note.github.io/class-tools/charcode/ |
 | 音のデジタル化シミュレーター（標本化・量子化・符号化／データ量） | 情報Ⅰ | https://hs-note.github.io/class-tools/sound/ |
 | 色の表現シミュレーター（光の三原色・カラーコード・階調） | 情報Ⅰ | https://hs-note.github.io/class-tools/color/ |
 | 画像のデジタル化シミュレーター（画素・解像度・階調／画像と動画のデータ量） | 情報Ⅰ | https://hs-note.github.io/class-tools/image/ |
